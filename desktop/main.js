@@ -154,7 +154,14 @@ function fensterRegel(url) {
 }
 app.on('web-contents-created', (e, wc) => {
   // Zendesk-Fenster darf zwischen zendesk.com und github.io wechseln, sonst nichts
-  wc.setWindowOpenHandler(({ url }) => fensterRegel(url));
+  // Anmeldefenster (Zendesk, evtl. Google/Microsoft-Login darin) dürfen weitere Anmelde-Fenster im Programm öffnen
+  wc.setWindowOpenHandler(({ url }) => {
+    const istHaupt = win && !win.isDestroyed() && wc === win.webContents;
+    let eigen = ''; try { eigen = wc.getURL(); } catch (e) {}
+    if (!istHaupt && /^https:/i.test(eigen) && /^https:/i.test(url))
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 560, height: 760, autoHideMenuBar: true, icon: nativeImage.createFromPath(ICON) } };
+    return fensterRegel(url);
+  });
 });
 
 /* ---------- Menü (mit Alt sichtbar) ---------- */
