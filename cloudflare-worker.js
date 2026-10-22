@@ -8,7 +8,7 @@ const ZD = 'https://segelmacherei.zendesk.com';
 const CLIENT = 'segelmacherei_werkzeuge';
 const REDIRECT = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html';
 const ORIGINS = ['https://segelmacherei.github.io', 'null'];
-const API_OK = [/^\/api\/v2\/users\/search\.json$/, /^\/api\/v2\/users\/\d+\/tickets\/requested\.json$/, /^\/api\/v2\/users\/me\.json$/];
+const API_OK = [/^\/api\/v2\/users\/search\.json$/, /^\/api\/v2\/users\/\d+\/tickets\/requested\.json$/, /^\/api\/v2\/users\/me\.json$/, /^\/api\/v2\/organizations\/\d+\/tickets\.json$/];
 
 function cors(origin) {
   const h = { 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '86400', 'Vary': 'Origin' };
