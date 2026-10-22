@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Segelmacherei Werkzeuge</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1d33">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--navy:#0f1d33;--blue:#1a73e8;--line:#d7dce5;--muted:#5d6675;--bad:#b3261e;--ok:#16683a}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--navy);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1d2433}
+  #app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;display:none}
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:28px 26px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .logo b{font-size:20px;letter-spacing:.2px}
+  .logo span{display:block;font-size:13px;color:var(--muted)}
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 5px}
+  input{width:100%;font-size:17px;padding:12px;border:1px solid var(--line);border-radius:8px}
+  button{font:inherit;font-size:17px;padding:13px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer}
+  button.pri{background:var(--blue);color:#fff;border-color:var(--blue);width:100%;margin-top:20px}
+  button.lnk{border:0;background:none;color:var(--blue);padding:8px 0;font-size:14px}
+  #msg{margin-top:16px;font-size:14.5px;line-height:1.45;color:var(--muted);min-height:20px;white-space:pre-line}
+  #msg.bad{color:var(--bad)}
+  .bar{height:6px;background:#e9edf3;border-radius:3px;overflow:hidden;margin-top:14px;display:none}
+  .bar i{display:block;height:100%;width:0;background:var(--blue);transition:width .2s}
+  /* Statusleiste (Sync / offline) */
+  #net{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(15,29,51,.92);color:#fff;font-size:13.5px;padding:7px 14px;border-radius:18px;z-index:50;display:none;max-width:90vw;text-align:center}
+  /* Ordner-/Speichern-Dialog */
+  #dlg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+  #dlg .card{max-width:620px;max-height:90vh;display:flex;flex-direction:column;padding:20px}
+  #dlgT{font-weight:600;font-size:18px;margin-bottom:6px}
+  #dlgPath{font-size:13px;color:var(--muted);margin-bottom:10px;word-break:break-all}
+  #dlgList{flex:1;overflow:auto;border:1px solid var(--line);border-radius:8px;min-height:200px}
+  #dlgList div{padding:13px 14px;border-bottom:1px solid #eef1f5;font-size:16px;display:flex;gap:10px;align-items:center}
+  #dlgList div:active{background:#eef4ff}
+  #dlgList .f{color:var(--muted)}
+  #dlgName{margin-top:10px}
+  .row{display:flex;gap:10px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap}
+  .row button.pri{width:auto;margin:0}
+</style>
+</head>
+<body>
+<iframe id="app" title="Werkzeuge" allow="geolocation; clipboard-write; fullscreen"></iframe>
+
+<div id="start">
+  <div class="card">
+    <div class="logo"><svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="10" fill="#0f1d33"/><path d="M9 33 L22 9 L35 33 Z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/><path d="M22 9 L22 33" stroke="#fff" stroke-width="2"/></svg>
+      <div><b>Segelmacherei Werkzeuge</b><span>Schmidhauser Segelmacherei GmbH</span></div></div>
+    <div id="login" hidden>
+      <label for="srv">Nextcloud-Adresse</label>
+      <input id="srv" value="https://cloud.segelmacherei.ch" inputmode="url" autocomplete="url">
+      <div id="webLogin" hidden>
+        <label for="wUser">Benutzername</label><input id="wUser" autocomplete="username" autocapitalize="off">
+        <label for="wPass">App-Passwort</label><input id="wPass" type="password" autocomplete="current-password" placeholder="xxxxx-xxxxx-xxxxx-xxxxx-xxxxx">
+      </div>
+      <button class="pri" id="bLogin">Mit Nextcloud anmelden</button>
+      <button class="lnk" id="bAdv">Erweitert …</button>
+      <div id="adv" hidden>
+        <label for="rootIn">Ordner „04-Vertrieb“ in Nextcloud</label>
+        <input id="rootIn" value="/04-Vertrieb">
+      </div>
+    </div>
+    <div class="bar" id="bar"><i></i></div>
+    <div id="msg">Starte …</div>
+    <div class="row" id="startBtns" hidden><button id="bRetry">Nochmals versuchen</button><button id="bOffline">Offline öffnen</button><button id="bLogout">Abmelden</button></div>
+  </div>
+</div>
+
+<div id="net"></div>
+
+<div id="dlg">
+  <div class="card">
+    <div id="dlgT">Ordner wählen</div>
+    <div id="dlgPath"></div>
+    <div id="dlgList"></div>
+    <input id="dlgName" placeholder="Dateiname" hidden>
+    <div class="row"><button id="dlgUp">⬆ Hoch</button><button id="dlgNew">＋ Neuer Ordner</button><button id="dlgCancel">Abbrechen</button><button class="pri" id="dlgOk">Diesen Ordner wählen</button></div>
+  </div>
+</div>
+
+<script src="webcap.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
