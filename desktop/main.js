@@ -116,6 +116,26 @@ async function sichern(name, bytes) {
   await fsp.writeFile(r.filePath, Buffer.from(bytes || [])); cfg.ablage = path.dirname(r.filePath); speichern(); return true;
 }
 
+/* ---------- prompt() für die Werkzeuge (Electron kennt es nicht) ---------- */
+ipcMain.on('seg-prompt', (ev, msg, def) => {
+  let fertig = false;
+  const parent = BrowserWindow.fromWebContents(ev.sender) || win;
+  const p = new BrowserWindow({ parent, modal: true, width: 460, height: 210, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
+    title: 'Eingabe', icon: nativeImage.createFromPath(ICON), show: false, webPreferences: { sandbox: true, contextIsolation: true } });
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const html = `<!doctype html><meta charset="utf-8"><title>Eingabe</title><body style="margin:0;font:14px system-ui,'Segoe UI',Arial;padding:16px;background:#fff;color:#1d2330">
+    <div style="white-space:pre-line;margin-bottom:10px">${esc(msg)}</div>
+    <input id="i" value="${esc(def)}" style="width:100%;box-sizing:border-box;font-size:15px;padding:7px 9px;border:1px solid #c9ced6;border-radius:7px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button id="x" style="padding:6px 14px">Abbrechen</button><button id="o" style="padding:6px 14px;background:#1f6feb;color:#fff;border:1px solid #1f6feb;border-radius:6px">OK</button></div>
+    <script>const i=document.getElementById('i');i.focus();i.select();const ok=()=>{document.title='OK:'+i.value},no=()=>{document.title='ABBRUCH'};
+    document.getElementById('o').onclick=ok;document.getElementById('x').onclick=no;i.onkeydown=e=>{if(e.key==='Enter')ok();if(e.key==='Escape')no()};</script></body>`;
+  const ende = v => { if (fertig) return; fertig = true; ev.returnValue = v; if (!p.isDestroyed()) p.destroy(); };
+  p.webContents.on('page-title-updated', (e, t) => { if (t.startsWith('OK:')) ende(t.slice(3)); else if (t === 'ABBRUCH') ende(null); });
+  p.on('closed', () => ende(null));
+  p.once('ready-to-show', () => p.show());
+  p.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+});
+
 /* ---------- Fenster ---------- */
 function startHash() { const h = startLink && hashAus(startLink); startLink = null; return h ? h.slice(1) : undefined; }
 function laden() {

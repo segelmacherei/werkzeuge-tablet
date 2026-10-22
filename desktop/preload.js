@@ -31,6 +31,8 @@ function SHIM(N) {
     secret: { get: async k => chk(await N.secretGet(String(k))), set: async (k, v) => chk(await N.secretSet(String(k), String(v))), del: async k => chk(await N.secretDel(String(k))) }
   };
   try { Object.defineProperty(window, '__seg', { value: S, configurable: false, writable: false }); } catch (e) { window.__seg = S; }
+  // prompt() gibt es in Electron nicht → eigenes Eingabefenster (wartet wie im Browser auf die Antwort)
+  try { window.prompt = function (msg, def) { return N.promptSync(msg == null ? '' : String(msg), def == null ? '' : String(def)); }; } catch (e) {}
   window.__segApp = true; window.__segDesktop = true;
 
   const norm = p => ('/' + String(p || '').split('/').filter(Boolean).join('/'));
@@ -137,6 +139,7 @@ if (location.protocol === 'file:') {
     list: v => call('list', v), stat: v => call('stat', v), read: v => call('read', v), write: (v, b) => call('write', v, b),
     mkdir: v => call('mkdir', v), remove: v => call('remove', v), picker: o => call('picker', o), save: (n, b) => call('save', n, b),
     openUrl: u => call('openUrl', u), openPath: v => call('openPath', v), info: () => call('info'),
+    promptSync: (m, d) => ipcRenderer.sendSync('seg-prompt', m, d),
     onZd: cb => { if (window.top === window) ipcRenderer.on('seg-zd', (e, d) => cb(d)); },
     secretGet: k => call('secretGet', k), secretSet: (k, v) => call('secretSet', k, v), secretDel: k => call('secretDel', k)
   };
