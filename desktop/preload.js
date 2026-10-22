@@ -18,6 +18,7 @@ function SHIM(N) {
     write: async (p, b) => chk(await N.write(p, b instanceof Uint8Array ? b : new Uint8Array(b || 0))),
     mkdir: async p => chk(await N.mkdir(p)),
     remove: async p => chk(await N.remove(p)),
+    move: async (p, ziel) => chk(await N.move(p, ziel)),
     picker: async o => chk(await N.picker(o || {})),
     share: async (blob, name) => chk(await N.save(String(name || 'Datei'), new Uint8Array(await blob.arrayBuffer()))),
     openUrl: u => N.openUrl(String(u)),
@@ -61,6 +62,7 @@ function SHIM(N) {
       await S.write(p, new Uint8Array(0)); return new FileHandle(p, { size: 0, mtime: Date.now() });
     }
     async removeEntry(name) { await S.remove(norm(this.path + '/' + name)); }
+    async move(ziel) { if (!ziel || ziel.kind !== 'directory') throw domErr('TypeMismatchError', 'Ziel muss ein Ordner sein'); this.path = await S.move(this.path, ziel.path); }
     async resolve(h) { if (!h || !h.path || !(h.path + '/').startsWith(this.path + '/')) return null; return h.path.slice(this.path.length).split('/').filter(Boolean); }
     async *entries() { const L = await this._list(); for (const e of L) yield [e.name, e.dir ? new DirHandle(e.path) : new FileHandle(e.path, e)]; }
     async *values() { for await (const [, h] of this.entries()) yield h; }
@@ -137,7 +139,7 @@ if (location.protocol === 'file:') {
   const call = (k, ...a) => ipcRenderer.invoke('seg', k, ...a);
   const N = {
     list: v => call('list', v), stat: v => call('stat', v), read: v => call('read', v), write: (v, b) => call('write', v, b),
-    mkdir: v => call('mkdir', v), remove: v => call('remove', v), picker: o => call('picker', o), save: (n, b) => call('save', n, b),
+    mkdir: v => call('mkdir', v), remove: v => call('remove', v), move: (v, z) => call('move', v, z), picker: o => call('picker', o), save: (n, b) => call('save', n, b),
     openUrl: u => call('openUrl', u), openPath: v => call('openPath', v), info: () => call('info'),
     promptSync: (m, d) => ipcRenderer.sendSync('seg-prompt', m, d),
     onZd: cb => { if (window.top === window) ipcRenderer.on('seg-zd', (e, d) => cb(d)); },

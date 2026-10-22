@@ -68,7 +68,7 @@ async function rootBestimmen(neuWaehlen) {
 }
 
 /* ---------- Schnittstelle für die Werkzeuge (preload.js) ---------- */
-const erlaubt = new Set(['list', 'stat', 'read', 'write', 'mkdir', 'remove', 'picker', 'save', 'openUrl', 'openPath', 'info', 'secretGet', 'secretSet', 'secretDel']);
+const erlaubt = new Set(['list', 'stat', 'read', 'write', 'mkdir', 'remove', 'move', 'picker', 'save', 'openUrl', 'openPath', 'info', 'secretGet', 'secretSet', 'secretDel']);
 ipcMain.handle('seg', async (ev, k, ...a) => {
   try {
     const url = (ev.senderFrame && ev.senderFrame.url) || '';
@@ -82,6 +82,7 @@ ipcMain.handle('seg', async (ev, k, ...a) => {
       case 'write': return await FS.write(a[0], a[1]);
       case 'mkdir': return await FS.mkdir(a[0]);
       case 'remove': return await FS.remove(a[0]);
+      case 'move': return await FS.move(a[0], a[1]);
       case 'picker': return await picker(a[0] || {});
       case 'save': return await sichern(String(a[0] || 'Datei'), a[1]);
       case 'openUrl': { const u = String(a[0] || ''); if (/^(https?|mailto|tel):/i.test(u)) await shell.openExternal(u); return true; }

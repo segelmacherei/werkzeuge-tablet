@@ -102,6 +102,16 @@ function erstelle(root, opt = {}) {
       if (real === root) throw fehler('SecurityError', 'Der Hauptordner kann nicht gelöscht werden');
       try { await fsp.stat(real); } catch (e) { throw fehler('NotFoundError', 'Nicht gefunden: ' + norm(v)); }
       await papierkorb(real); return true;
+    },
+    /* Ordner verschieben (nur innerhalb 04-Vertrieb, nie überschreiben) – z.B. von „01 Offeriert“ zu den Aufträgen */
+    async move(v, zielOrdnerV) {
+      const real = toReal(v), zielDir = toReal(zielOrdnerV), ziel = path.join(zielDir, path.basename(real));
+      if (real === root || !innerhalb(root, real) || !innerhalb(root, zielDir)) throw fehler('SecurityError', 'Nur innerhalb von 04-Vertrieb');
+      try { await fsp.stat(real); } catch (e) { throw fehler('NotFoundError', 'Nicht gefunden: ' + norm(v)); }
+      if (fs.existsSync(ziel)) throw fehler('InvalidModificationError', 'Am Ziel gibt es schon: ' + path.basename(real));
+      try { await fsp.rename(real, ziel); }
+      catch (e) { if (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'EACCES') throw fehler('NoModificationAllowedError', 'Eine Datei im Ordner ist gerade geöffnet. Bitte schliessen und nochmals versuchen.'); throw e; }
+      return toVirt(ziel);
     }
   };
 }
