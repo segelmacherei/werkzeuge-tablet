@@ -152,7 +152,23 @@ function fensterRegel(url) {
   if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url);
   return { action: 'deny' };
 }
+/* Zendesk-Anmeldung: Rücksprung (zendesk.html?code=…) hier abfangen und an die Werkzeuge geben.
+   Nötig, weil Zendesk die Verbindung zum öffnenden Fenster (window.opener) trennt. */
+const ZD_RUECK = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html';
+function zdFang(wc) {
+  const f = (e, url) => {
+    if (!String(url || '').startsWith(ZD_RUECK)) return;
+    let u; try { u = new URL(url); } catch (x) { return; }
+    const code = u.searchParams.get('code'), error = u.searchParams.get('error');
+    if (!code && !error) return;
+    e.preventDefault();
+    if (win && !win.isDestroyed()) { win.webContents.send('seg-zd', { code, state: u.searchParams.get('state') || '', error, error_description: u.searchParams.get('error_description') || '' }); win.focus(); }
+    const bw = BrowserWindow.fromWebContents(wc); if (bw && bw !== win) setTimeout(() => { try { bw.close(); } catch (x) {} }, 50);
+  };
+  wc.on('will-redirect', f); wc.on('will-navigate', f);
+}
 app.on('web-contents-created', (e, wc) => {
+  zdFang(wc);
   // Zendesk-Fenster darf zwischen zendesk.com und github.io wechseln, sonst nichts
   // Anmeldefenster (Zendesk, evtl. Google/Microsoft-Login darin) dürfen weitere Anmelde-Fenster im Programm öffnen
   wc.setWindowOpenHandler(({ url }) => {

@@ -23,6 +23,8 @@ function SHIM(N) {
     openUrl: u => N.openUrl(String(u)),
     openPath: async p => chk(await N.openPath(p)),
     info: async () => chk(await N.info()),
+    // Zendesk-Anmeldung: das Programm fängt den Rücksprung ab und meldet Code/State hierher
+    onZendesk: cb => { if (typeof cb === 'function') N.onZd(d => { try { cb(d); } catch (e) {} }); },
     showNet() {},
     online: true,
     // Verschlüsselt auf diesem PC (Windows-Benutzerkonto), z.B. für die automatische Exxas-Erneuerung
@@ -135,6 +137,7 @@ if (location.protocol === 'file:') {
     list: v => call('list', v), stat: v => call('stat', v), read: v => call('read', v), write: (v, b) => call('write', v, b),
     mkdir: v => call('mkdir', v), remove: v => call('remove', v), picker: o => call('picker', o), save: (n, b) => call('save', n, b),
     openUrl: u => call('openUrl', u), openPath: v => call('openPath', v), info: () => call('info'),
+    onZd: cb => { if (window.top === window) ipcRenderer.on('seg-zd', (e, d) => cb(d)); },
     secretGet: k => call('secretGet', k), secretSet: (k, v) => call('secretSet', k, v), secretDel: k => call('secretDel', k)
   };
   try {
