@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zendesk verbinden – Segelmacherei Werkzeuge</title>
+<style>
+:root{--ink:#1d2330;--muted:#6b7280;--line:#dde1e7;--accent:#1f6feb}
+body{margin:0;background:#1d2330;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.card{background:#fff;border-radius:14px;max-width:440px;width:100%;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+h1{font-size:19px;margin:0 0 6px}p{font-size:14.5px;line-height:1.45;color:var(--muted);margin:8px 0}
+.ok{color:#1b6b3a}.bad{color:#b3261e}
+button{font:inherit;font-size:15px;padding:10px 16px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="card"><h1>Zendesk verbinden</h1><p id="msg">Einen Moment …</p><div id="act"></div></div>
+<script>
+/* Rücksprung-Seite für die Zendesk-Anmeldung (OAuth mit PKCE) der Segelmacherei-Werkzeuge.
+   Ablauf: Werkzeuge öffnet die Zendesk-Anmeldung in einem Fenster → Zendesk leitet hierher zurück (?code=…&state=…)
+   → diese Seite holt sich den Prüfwert (code_verifier) vom öffnenden Fenster, tauscht den Code gegen einen Zugriffsschlüssel
+   und gibt ihn an die Werkzeuge zurück. Der Schlüssel wird hier nicht gespeichert (ausser beim Test ohne öffnendes Fenster). */
+const SUB='segelmacherei',CLIENT='segelmacherei_werkzeuge',SCOPE='tickets:read users:read';
+const REDIRECT=location.origin+location.pathname;
+const $=id=>document.getElementById(id);
+const say=(t,c)=>{const m=$('msg');m.textContent=t;m.className=c||''};
+const b64u=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+async function pkce(){const v=b64u(crypto.getRandomValues(new Uint8Array(48)));const c=b64u(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));return {v,c}}
+function authUrl(state,challenge){const q=new URLSearchParams({response_type:'code',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,state,code_challenge:challenge,code_challenge_method:'S256'});return `https://${SUB}.zendesk.com/oauth/authorizations/new?${q}`}
+function fromOpener(state){return new Promise((res,rej)=>{if(!window.opener){rej(new Error('kein Fenster'));return}
+  const t=setTimeout(()=>{removeEventListener('message',h);rej(new Error('Keine Antwort von den Werkzeugen'))},8000);
+  function h(e){const d=e.data;if(!d||d.app!=='werkzeuge'||d.type!=='zd:verifier'||d.state!==state)return;clearTimeout(t);removeEventListener('message',h);res(d.verifier)}
+  addEventListener('message',h);window.opener.postMessage({app:'werkzeuge',type:'zd:need',state},'*')})}
+async function tausch(code,verifier){
+  const r=await fetch(`https://${SUB}.zendesk.com/oauth/tokens`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({grant_type:'authorization_code',code,client_id:CLIENT,redirect_uri:REDIRECT,code_verifier:verifier,scope:SCOPE})});
+  const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token)throw new Error(j.error_description||j.error||('Zendesk antwortet '+r.status));return j}
+async function test(tok){const r=await fetch(`https://${SUB}.zendesk.com/api/v2/users/me.json`,{headers:{Authorization:'Bearer '+tok}});const j=await r.json();return j.user&&j.user.name}
+(async()=>{
+  const q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1));
+  if(q.get('error')){say('Zendesk hat die Verbindung abgelehnt: '+(q.get('error_description')||q.get('error')),'bad');return}
+  const code=q.get('code'),state=q.get('state')||'';
+  if(code){
+    history.replaceState(null,'',location.pathname);
+    say('Verbinde mit Zendesk …');
+    try{let v=null;try{v=sessionStorage.getItem('zd.v.'+state)}catch(e){}
+      if(!v)v=await fromOpener(state);
+      const j=await tausch(code,v);
+      if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null},'*');
+        say('Verbunden. Dieses Fenster schliesst sich.','ok');setTimeout(()=>window.close(),900)}
+      else{try{localStorage.setItem('werkzeuge.zendesk',JSON.stringify({token:j.access_token,seit:new Date().toISOString(),ablauf:j.expires_in?Date.now()+j.expires_in*1000:null}))}catch(e){}
+        let n='';try{n=await test(j.access_token)}catch(e){}
+        say('Verbunden'+(n?' als '+n:'')+'. Ihr könnt dieses Fenster schliessen.','ok')}
+    }catch(e){say('Verbindung fehlgeschlagen: '+(e.message||e),'bad')}
+    return}
+  // Ohne Rücksprung: Test-Knopf (Anmeldung direkt von dieser Seite aus)
+  say('Hier wird die Zendesk-Anmeldung der Werkzeuge abgeschlossen. Zum Testen kann die Verbindung auch direkt hier hergestellt werden.');
+  const b=document.createElement('button');b.textContent='Mit Zendesk verbinden (Test)';$('act').appendChild(b);
+  b.onclick=async()=>{const st=b64u(crypto.getRandomValues(new Uint8Array(12))),p=await pkce();try{sessionStorage.setItem('zd.v.'+st,p.v)}catch(e){}location.href=authUrl(st,p.c)};
+})();
+</script>
+</body>
+</html>
