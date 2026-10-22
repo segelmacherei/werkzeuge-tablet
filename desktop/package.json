@@ -1,0 +1,44 @@
+{
+  "name": "segelmacherei-werkzeuge",
+  "productName": "Segelmacherei Werkzeuge",
+  "version": "1.0.0",
+  "description": "Segelmacherei Werkzeuge für Windows – öffnet die Werkzeuge direkt aus dem Nextcloud-Ordner",
+  "author": "Schmidhauser Segelmacherei",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64 --publish never",
+    "release": "electron-builder --win --x64 --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ch.segelmacherei.werkzeuge",
+    "productName": "Segelmacherei Werkzeuge",
+    "copyright": "Schmidhauser Segelmacherei",
+    "files": ["main.js", "preload.js", "kern.js", "icon.png", "package.json"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "icon.png",
+      "artifactName": "Segelmacherei-Werkzeuge-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Segelmacherei Werkzeuge",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "protocols": [{ "name": "Segelmacherei Werkzeuge", "schemes": ["segelmacherei"] }],
+    "publish": [{ "provider": "github", "owner": "segelmacherei", "repo": "werkzeuge-tablet", "releaseType": "release" }]
+  }
+}
