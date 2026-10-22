@@ -53,7 +53,7 @@ const path = require('path'), fs = require('fs'), os = require('os');
   await win.evaluate(() => { setTimeout(() => { window.__p = prompt('Abstand in mm?', '4200'); }, 50); });
   let pw = null; for (let i = 0; i < 40 && !pw; i++) { await win.waitForTimeout(250).catch(() => {}); pw = app.windows().find(w => w !== win); }
   let pr = 'kein Fenster';
-  if (pw) { await pw.waitForSelector('#i'); await pw.fill('#i', '5100'); await pw.press('#i', 'Enter'); await new Promise(r => setTimeout(r, 800)); pr = await win.evaluate(() => window.__p); }
+  if (pw) { await pw.waitForSelector('#i'); await pw.fill('#i', '5100'); await pw.press('#i', 'Enter').catch(() => {}); await new Promise(r => setTimeout(r, 800)); pr = await win.evaluate(() => window.__p); }
   console.log({ prompt: pr });
   const okPrompt = pr === '5100';
   await app.close();
