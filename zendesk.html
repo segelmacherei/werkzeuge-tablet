@@ -29,7 +29,7 @@ const b64u=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-')
 async function pkce(){const v=b64u(crypto.getRandomValues(new Uint8Array(48)));const c=b64u(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));return {v,c}}
 function authUrl(state,challenge){const q=new URLSearchParams({response_type:'code',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,state,code_challenge:challenge,code_challenge_method:'S256'});return `https://${SUB}.zendesk.com/oauth/authorizations/new?${q}`}
 function fromOpener(state){return new Promise((res,rej)=>{if(!window.opener){rej(new Error('kein Fenster'));return}
-  const t=setTimeout(()=>{removeEventListener('message',h);rej(new Error('Keine Antwort von den Werkzeugen'))},8000);
+  const t=setTimeout(()=>{removeEventListener('message',h);rej(new Error('Keine Antwort von den Werkzeugen'))},3000);
   function h(e){const d=e.data;if(!d||d.app!=='werkzeuge'||d.type!=='zd:verifier'||d.state!==state)return;clearTimeout(t);removeEventListener('message',h);res(d.verifier)}
   addEventListener('message',h);window.opener.postMessage({app:'werkzeuge',type:'zd:need',state},'*')})}
 async function tausch(code,verifier){
@@ -52,7 +52,12 @@ async function test(tok){const H={Authorization:'Bearer '+tok};let r,via='direkt
     history.replaceState(null,'',location.pathname);
     say('Verbinde mit Zendesk …');
     try{let v=null;try{v=sessionStorage.getItem('zd.v.'+state)}catch(e){}
-      if(!v)v=await fromOpener(state);
+      if(!v){try{v=await fromOpener(state)}catch(e){
+        // Tablet-App / kein öffnendes Fenster: Code an die Werkzeuge weitergeben (gleiche Adresse), dort wird er mit dem Prüfwert getauscht
+        const m={type:'zd:code',code,state,t:Date.now()};try{const bc=new BroadcastChannel('werkzeuge-zendesk');bc.postMessage(m);setTimeout(()=>bc.close(),1500)}catch(x){}
+        try{localStorage.setItem('werkzeuge.zd.code',JSON.stringify(m))}catch(x){}
+        say('Fast fertig: Zurück zur Segelmacherei-App wechseln – die Verbindung wird dort abgeschlossen. Dieses Fenster kann geschlossen werden.','ok');
+        try{setTimeout(()=>window.close(),2500)}catch(x){}return}}
       const j=await tausch(code,v);
       if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null,refresh_token:j.refresh_token||null},'*');
         say('Verbunden. Dieses Fenster schliesst sich.','ok');setTimeout(()=>window.close(),900)}
