@@ -54,9 +54,9 @@ async function test(tok){const H={Authorization:'Bearer '+tok};let r,via='direkt
     try{let v=null;try{v=sessionStorage.getItem('zd.v.'+state)}catch(e){}
       if(!v)v=await fromOpener(state);
       const j=await tausch(code,v);
-      if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null},'*');
+      if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null,refresh_token:j.refresh_token||null},'*');
         say('Verbunden. Dieses Fenster schliesst sich.','ok');setTimeout(()=>window.close(),900)}
-      else{try{localStorage.setItem('werkzeuge.zendesk',JSON.stringify({token:j.access_token,seit:new Date().toISOString(),ablauf:j.expires_in?Date.now()+j.expires_in*1000:null}))}catch(e){}
+      else{try{localStorage.setItem('werkzeuge.zendesk',JSON.stringify({token:j.access_token,refresh:j.refresh_token||null,seit:new Date().toISOString(),ablauf:j.expires_in?Date.now()+j.expires_in*1000:null}))}catch(e){}
         let n='';try{n=await test(j.access_token)}catch(e){}
         say('Verbunden'+(n?' als '+n:'')+'. Ihr könnt dieses Fenster schliessen.','ok')}
     }catch(e){say('Verbindung fehlgeschlagen: '+(e.message||e),'bad')}
