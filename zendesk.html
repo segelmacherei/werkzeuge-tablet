@@ -20,6 +20,7 @@ button{font:inherit;font-size:15px;padding:10px 16px;border-radius:9px;border:1p
    Ablauf: Werkzeuge öffnet die Zendesk-Anmeldung in einem Fenster → Zendesk leitet hierher zurück (?code=…&state=…)
    → diese Seite holt sich den Prüfwert (code_verifier) vom öffnenden Fenster, tauscht den Code gegen einen Zugriffsschlüssel
    und gibt ihn an die Werkzeuge zurück. Der Schlüssel wird hier nicht gespeichert (ausser beim Test ohne öffnendes Fenster). */
+const WORKER='https://segelmacherei-zendesk.yannicklona.workers.dev';
 const SUB='segelmacherei',CLIENT='segelmacherei_werkzeuge',SCOPE='tickets:read users:read';
 const REDIRECT=location.origin+location.pathname;
 const $=id=>document.getElementById(id);
@@ -32,10 +33,10 @@ function fromOpener(state){return new Promise((res,rej)=>{if(!window.opener){rej
   function h(e){const d=e.data;if(!d||d.app!=='werkzeuge'||d.type!=='zd:verifier'||d.state!==state)return;clearTimeout(t);removeEventListener('message',h);res(d.verifier)}
   addEventListener('message',h);window.opener.postMessage({app:'werkzeuge',type:'zd:need',state},'*')})}
 async function tausch(code,verifier){
-  const r=await fetch(`https://${SUB}.zendesk.com/oauth/tokens`,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({grant_type:'authorization_code',code,client_id:CLIENT,redirect_uri:REDIRECT,code_verifier:verifier,scope:SCOPE})});
+  // Zendesk erlaubt diesen Tausch nicht direkt aus dem Browser → über den Worker der Segelmacherei (Cloudflare)
+  const r=await fetch(WORKER+'/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,code_verifier:verifier})});
   const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token)throw new Error(j.error_description||j.error||('Zendesk antwortet '+r.status));return j}
-async function test(tok){const r=await fetch(`https://${SUB}.zendesk.com/api/v2/users/me.json`,{headers:{Authorization:'Bearer '+tok}});const j=await r.json();return j.user&&j.user.name}
+async function test(tok){const H={Authorization:'Bearer '+tok};let r,via='direkt';try{r=await fetch(`https://${SUB}.zendesk.com/api/v2/users/me.json`,{headers:H})}catch(e){r=await fetch(WORKER+'/api/v2/users/me.json',{headers:H});via='Worker'}const j=await r.json();return j.user&&(j.user.name+' – Abfrage '+via)}
 (async()=>{
   const q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1));
   if(q.get('error')){say('Zendesk hat die Verbindung abgelehnt: '+(q.get('error_description')||q.get('error')),'bad');return}
@@ -63,7 +64,7 @@ async function test(tok){const r=await fetch(`https://${SUB}.zendesk.com/api/v2/
   // Ohne Rücksprung: Test-Knopf (Anmeldung direkt von dieser Seite aus)
   say('Hier wird die Zendesk-Anmeldung der Werkzeuge abgeschlossen. Zum Testen kann die Verbindung auch direkt hier hergestellt werden.');
   const b=document.createElement('button');b.textContent='Mit Zendesk verbinden (Test)';$('act').appendChild(b);
-  b.onclick=()=>{const st=b64u(crypto.getRandomValues(new Uint8Array(12)));const q=new URLSearchParams({response_type:'token',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,state:st});location.href=`https://${SUB}.zendesk.com/oauth/authorizations/new?${q}`};
+  b.onclick=async()=>{const st=b64u(crypto.getRandomValues(new Uint8Array(12))),p=await pkce();try{sessionStorage.setItem('zd.v.'+st,p.v)}catch(e){}location.href=authUrl(st,p.c)};
 })();
 </script>
 </body>
