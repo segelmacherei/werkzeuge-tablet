@@ -211,13 +211,32 @@ async function openTools(){if(window.__swReady)await window.__swReady;const u=aw
   const src=typeof C.convertFileSrc==='function'?C.convertFileSrc(u.uri):u.uri;
   const f=$('app');f.src=src+(pendingLink?'#kunde?'+pendingLink.toString():'');pendingLink=null;f.style.display='block';$('start').style.display='none'}
 
+/* ---------------- App-Update aus der Nextcloud ----------------
+   Im Ordner 04 Werkzeuge/Tablet-App liegen Segelmacherei-Werkzeuge.apk und version.txt (z.B. 1.0.10).
+   Ist die Nummer grösser als die eigene, erscheint oben ein Hinweis. Android fragt beim Installieren selbst nach. */
+let updT=0;
+async function updatePruefen(){if(C.isWeb||!cfg||Date.now()-updT<3600e3)return;updT=Date.now();
+  try{const me=await plug('Update','info');const D=cfg.root+'/04 Werkzeuge/Tablet-App';
+    const r=await davRaw('GET',D+'/version.txt',{responseType:'text'});if(r.status!==200)return;
+    const neu=String(r.data||'').trim(),nr=+(neu.split('.').pop()||0);if(!nr||nr<=+me.versionCode)return;
+    updateHinweis(neu,me,D+'/Segelmacherei-Werkzeuge.apk')}catch(e){console.warn('Update-Prüfung',e)}}
+function updateHinweis(neu,me,pfad){let u=$('updBar');if(u)u.remove();u=document.createElement('div');u.id='updBar';
+  u.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;background:#1d2330;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(0,0,0,.35);font:15px system-ui,sans-serif;display:flex;gap:10px;align-items:center;max-width:calc(100% - 24px)';
+  u.innerHTML='<span id="updT">Neue App-Version '+neu+' (jetzt '+me.versionName+')</span><button id="updGo" style="font:inherit;padding:8px 14px;border:0;border-radius:8px;background:#1f6feb;color:#fff">Aktualisieren</button><button id="updX" style="font:inherit;padding:8px 10px;border:0;border-radius:8px;background:#3a4252;color:#fff">Später</button>';
+  document.body.append(u);$('updX').onclick=()=>u.remove();
+  $('updGo').onclick=async()=>{const t=$('updT'),g=$('updGo');g.disabled=true;t.textContent='Lade App '+neu+' …';
+    try{await flushOutbox()}catch(e){}
+    try{const r=await plug('Update','install',{url:davBase()+encPath(pfad),headers:{Authorization:'Basic '+b64utf8(cfg.user+':'+cfg.pass)}});
+      if(r&&r.needPermission){t.textContent='Einmalig: „Apps aus dieser Quelle erlauben“ einschalten, zurück und nochmals tippen.';g.disabled=false;return}
+      t.textContent='Android fragt jetzt: „Aktualisieren“ tippen.';g.disabled=false}
+    catch(e){t.textContent='Update fehlgeschlagen: '+(e.message||e);g.disabled=false}}}
 async function start(){
   $('startBtns').hidden=true;$('login').hidden=true;
   cfg=await prefGet('nc');
   if(!cfg||!cfg.pass){showLogin();return}
   window.__seg.root=cfg.root;
   msg('Werkzeuge werden aktualisiert …');
-  try{const n=await syncTools();msg(n?n+' Werkzeug(e) aktualisiert':'Werkzeuge sind aktuell');flushOutbox();await openTools()}
+  try{const n=await syncTools();msg(n?n+' Werkzeug(e) aktualisiert':'Werkzeuge sind aktuell');flushOutbox();await openTools();updatePruefen()}
   catch(e){
     if(e instanceof AuthErr){msg('Anmeldung abgelaufen – bitte neu anmelden.',true);showLogin();return}
     const had=!!(await prefGet('toolsTime'));
@@ -257,7 +276,7 @@ $('bLogin').onclick=login;$('bAdv').onclick=()=>{$('adv').hidden=!$('adv').hidde
 $('bRetry').onclick=start;$('bLogout').onclick=logout;$('bOffline').onclick=openTools;
 
 /* Zurück-Taste: nicht versehentlich schliessen */
-try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backButton',()=>{if($('dlg').style.display==='flex'){$('dlgCancel').click();return}if(confirm('App schliessen?'))A.exitApp()});A.addListener('resume',()=>flushOutbox());
+try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backButton',()=>{if($('dlg').style.display==='flex'){$('dlgCancel').click();return}if(confirm('App schliessen?'))A.exitApp()});A.addListener('resume',()=>{flushOutbox();updatePruefen()});
   A.addListener('appUrlOpen',e=>appLink(e&&e.url))}
   if(!C.isWeb)plug('App','getLaunchUrl').then(r=>appLink(r&&r.url)).catch(()=>{})}catch(e){}
 
