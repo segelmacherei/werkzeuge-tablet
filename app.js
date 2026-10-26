@@ -150,6 +150,34 @@ function picker({mode='dir',start,suggestedName='',title}={}){return new Promise
   $('dlgOk').onclick=()=>{if(mode==='save'){const n=N.value.trim();if(!n){N.focus();return}close();res(norm(cur+'/'+n))}else{close();res(cur)}};
   D.style.display='flex';show()})}
 
+/* ---------------- QR-Code vom Auftrag: Projekt öffnen ----------------
+   Inhalt: https://segelmacherei.github.io/werkzeuge-tablet/#p=<Exxas-Nr>  (ohne Nr.: #o=<Ordner>) oder nur die Nummer */
+function linkParams(u){try{const s=String(u||'').trim();if(/^\d{4,}$/.test(s))return new URLSearchParams({nr:s});
+  const url=new URL(s,location.href),h=new URLSearchParams(url.hash.replace(/^#/,'')),q=url.searchParams;
+  const p=h.get('p')||q.get('p'),o=h.get('o')||q.get('o');if(p&&/^\d{4,}$/.test(p))return new URLSearchParams({nr:p});if(o)return new URLSearchParams({id:o})}catch(e){}return null}
+let pendingLink=linkParams(location.href);
+if(pendingLink&&C.isWeb)try{history.replaceState(null,'',location.pathname)}catch(e){}
+function openProjekt(P){if(!P)return;const f=$('app');if(!f.src||f.style.display==='none'){pendingLink=P;return}
+  try{const w=f.contentWindow;if(w&&typeof w.kdDirekt==='function'){w.kdDirekt(P);return}}catch(e){}
+  f.src=f.src.split('#')[0]+'#kunde?'+P.toString()}
+/* QR-Code scannen: in der App mit dem Google-Scanner (ML Kit), im Browser mit BarcodeDetector + Kamera */
+async function scan(){
+  if(!C.isWeb){const B='BarcodeScanner';
+    try{const a=await plug(B,'isGoogleBarcodeScannerModuleAvailable');if(a&&a.available===false){await plug(B,'installGoogleBarcodeScannerModule').catch(()=>{});
+      showNet('Der Scanner wird einmalig installiert – in einer Minute nochmals tippen.',7000);return null}}catch(e){}
+    try{const r=await plug(B,'scan',{formats:['QR_CODE']});const b=r&&r.barcodes&&r.barcodes[0];return b?(b.rawValue||b.displayValue||''):null}
+    catch(e){if(/cancel/i.test(e&&e.message||''))return null;throw new Error('Scanner: '+(e&&e.message||e))}}
+  if(!('BarcodeDetector' in window)||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Scannen geht in diesem Browser nicht. Den QR-Code einfach mit der Handy-Kamera scannen.');
+  const det=new BarcodeDetector({formats:['qr_code']});
+  const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+  return new Promise(res=>{const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font:16px system-ui,sans-serif;color:#fff';
+    ov.innerHTML='<video playsinline muted autoplay style="max-width:100%;max-height:75vh;border-radius:8px"></video><div>QR-Code vom Auftrag ins Bild halten</div><button type="button" style="font-size:17px;padding:10px 26px;border-radius:8px;border:0">Abbrechen</button>';
+    document.body.append(ov);const v=ov.querySelector('video');v.srcObject=st;let fertig=false,t=0;
+    const ende=x=>{if(fertig)return;fertig=true;clearTimeout(t);st.getTracks().forEach(k=>k.stop());ov.remove();res(x)};
+    ov.querySelector('button').onclick=()=>ende(null);
+    const lauf=async()=>{if(fertig)return;try{if(v.readyState>=2){const r=await det.detect(v);if(r&&r[0]&&r[0].rawValue)return ende(r[0].rawValue)}}catch(e){}t=setTimeout(lauf,200)};lauf()})}
+
 /* ---------------- Werkzeuge laden ---------------- */
 const SHIM='<script src="'+(C.isWeb?new URL('shim.js',location.href).href:'/shim.js')+'"></script>';
 function inject(html){if(/<head[^>]*>/i.test(html))return html.replace(/<head([^>]*)>/i,m=>m+SHIM);return SHIM+html}
@@ -172,7 +200,7 @@ async function syncTools(){
 
 async function openTools(){if(window.__swReady)await window.__swReady;const u=await plug('Filesystem','getUri',{path:'w/'+TOOL_HOST,directory:FS.DATA});
   const src=typeof C.convertFileSrc==='function'?C.convertFileSrc(u.uri):u.uri;
-  const f=$('app');f.src=src;f.style.display='block';$('start').style.display='none'}
+  const f=$('app');f.src=src+(pendingLink?'#kunde?'+pendingLink.toString():'');pendingLink=null;f.style.display='block';$('start').style.display='none'}
 
 async function start(){
   $('startBtns').hidden=true;$('login').hidden=true;
@@ -220,10 +248,12 @@ $('bLogin').onclick=login;$('bAdv').onclick=()=>{$('adv').hidden=!$('adv').hidde
 $('bRetry').onclick=start;$('bLogout').onclick=logout;$('bOffline').onclick=openTools;
 
 /* Zurück-Taste: nicht versehentlich schliessen */
-try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backButton',()=>{if($('dlg').style.display==='flex'){$('dlgCancel').click();return}if(confirm('App schliessen?'))A.exitApp()});A.addListener('resume',()=>flushOutbox())}}catch(e){}
+try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backButton',()=>{if($('dlg').style.display==='flex'){$('dlgCancel').click();return}if(confirm('App schliessen?'))A.exitApp()});A.addListener('resume',()=>flushOutbox());
+  A.addListener('appUrlOpen',e=>openProjekt(linkParams(e&&e.url)))}
+  if(!C.isWeb)plug('App','getLaunchUrl').then(r=>openProjekt(linkParams(r&&r.url))).catch(()=>{})}catch(e){}
 
 /* Schnittstelle für die Werkzeuge (shim.js) */
-window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,
+window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,scan,openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
   get online(){return online},get user(){return cfg&&cfg.user},logout};
 
 start();
