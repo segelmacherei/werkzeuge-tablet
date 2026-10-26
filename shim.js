@@ -8,6 +8,7 @@
 let S=null;{let w=window;for(let i=0;i<8&&w;i++){try{if(w.__seg){S=w.__seg;break}}catch(e){break}if(w===w.parent)break;w=w.parent}}
 if(!S)return; // nicht in der App
 window.__segApp=true;
+try{if(!window.__seg)window.__seg=S}catch(e){} /* Werkzeuge nutzen openUrl und secret direkt */
 if(typeof S.scan==='function')window.__segScan=()=>S.scan(); /* QR-Code vom Auftrag scannen */
 const norm=p=>('/'+String(p||'').split('/').filter(Boolean).join('/'));
 const MIME={pdf:'application/pdf',json:'application/json',csv:'text/csv',txt:'text/plain',html:'text/html',htm:'text/html',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',svg:'image/svg+xml',dxf:'application/dxf',step:'application/step',stp:'application/step',ics:'text/calendar',xml:'application/xml'};

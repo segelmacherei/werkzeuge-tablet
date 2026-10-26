@@ -253,7 +253,10 @@ try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backBut
   if(!C.isWeb)plug('App','getLaunchUrl').then(r=>openProjekt(linkParams(r&&r.url))).catch(()=>{})}catch(e){}
 
 /* Schnittstelle für die Werkzeuge (shim.js) */
-window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,scan,openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
+window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,scan,
+  /* Für die Werkzeuge: z.B. Exxas-Anmeldung des API-Benutzers, damit sie sich nach 24 h selbst erneuert (nur in der App gespeichert, wie das Nextcloud-App-Passwort) */
+  secret:{get:async k=>{const v=await prefGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await prefSet('geheim:'+k,String(v));return true},del:async k=>{try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){await prefSet('geheim:'+k,null)}return true}},
+  openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
   get online(){return online},get user(){return cfg&&cfg.user},logout};
 
 start();
