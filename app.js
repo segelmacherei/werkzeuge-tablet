@@ -131,6 +131,10 @@ async function share(blob,name){const b=new Uint8Array(await blob.arrayBuffer())
   await plug('Filesystem','writeFile',{path,data:bytesToB64(b),directory:FS.CACHE,recursive:true});
   const u=await plug('Filesystem','getUri',{path,directory:FS.CACHE});
   try{await plug('Share','share',{title:name,files:[u.uri],dialogTitle:name})}catch(e){if(!/cancel/i.test(String(e&&e.message)))showNet('Teilen nicht möglich: '+(e.message||e),4000)}}
+/* Navigation im Auto: Google Maps startet direkt die Routenführung; ohne Google-Maps-App die Webseite */
+async function nav(ziel){const z=String(ziel||'').trim();if(!z)return;const web='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(z)+'&travelmode=driving';
+  if(C.isWeb){window.open(web,'_blank');return}
+  try{await plug('Update','oeffnen',{url:'google.navigation:q='+encodeURIComponent(z)+'&mode=d'})}catch(e){openUrl(web)}}
 async function openUrl(url){try{await plug('Browser','open',{url})}catch(e){window.open(url,'_blank')}}
 
 /* ---------------- Ordner-/Speichern-Dialog ---------------- */
@@ -281,7 +285,7 @@ try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backBut
   if(!C.isWeb)plug('App','getLaunchUrl').then(r=>appLink(r&&r.url)).catch(()=>{})}catch(e){}
 
 /* Schnittstelle für die Werkzeuge (shim.js) */
-window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,scan,
+window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,nav,showNet,flush:flushOutbox,scan,
   /* Für die Werkzeuge: z.B. Exxas-Anmeldung des API-Benutzers, damit sie sich nach 24 h selbst erneuert (nur in der App gespeichert, wie das Nextcloud-App-Passwort) */
   secret:{get:async k=>{const v=await prefGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await prefSet('geheim:'+k,String(v));return true},del:async k=>{try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){await prefSet('geheim:'+k,null)}return true}},
   onZendesk:f=>{zdHoerer=f;if(zdWartend){const d=zdWartend;zdWartend=null;setTimeout(()=>f(d),0)}},
