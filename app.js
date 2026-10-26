@@ -293,5 +293,6 @@ window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share
   openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
   get online(){return online},get user(){return cfg&&cfg.user},logout};
 
+if(!C.isWeb)plug('App','getInfo').then(i=>{if(i&&i.version)$('appVer').textContent='v'+i.version}).catch(()=>{});
 start();
 })();
