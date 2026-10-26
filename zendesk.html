@@ -54,6 +54,12 @@ async function test(tok){const H={Authorization:'Bearer '+tok};let r,via='direkt
     try{let v=null;try{v=sessionStorage.getItem('zd.v.'+state)}catch(e){}
       if(!v){try{v=await fromOpener(state)}catch(e){
         // Tablet-App / kein öffnendes Fenster: Code an die Werkzeuge weitergeben (gleiche Adresse), dort wird er mit dem Prüfwert getauscht
+        if(/^app\./.test(state)){ // Android-App: über segelmacherei://zendesk zurück in die App, dort wird der Code getauscht
+          const qs='code='+encodeURIComponent(code)+'&state='+encodeURIComponent(state);
+          const ziel=/Android/i.test(navigator.userAgent)?'intent://zendesk?'+qs+'#Intent;scheme=segelmacherei;package=ch.segelmacherei.werkzeuge;end':'segelmacherei://zendesk?'+qs;
+          say('Angemeldet. Jetzt zurück zur Segelmacherei-App – die Verbindung wird dort abgeschlossen.','ok');
+          const a=document.createElement('a');a.href=ziel;a.textContent='Zurück zur App';a.style.cssText='display:inline-block;font-size:16px;padding:12px 18px;border-radius:9px;background:#1f6feb;color:#fff;text-decoration:none;margin-top:10px';$('act').appendChild(a);
+          setTimeout(()=>{location.href=ziel},300);return}
         const m={type:'zd:code',code,state,t:Date.now()};try{const bc=new BroadcastChannel('werkzeuge-zendesk');bc.postMessage(m);setTimeout(()=>bc.close(),1500)}catch(x){}
         try{localStorage.setItem('werkzeuge.zd.code',JSON.stringify(m))}catch(x){}
         say('Fast fertig: Zurück zur Segelmacherei-App wechseln – die Verbindung wird dort abgeschlossen. Dieses Fenster kann geschlossen werden.','ok');

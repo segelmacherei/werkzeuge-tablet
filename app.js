@@ -155,6 +155,15 @@ function picker({mode='dir',start,suggestedName='',title}={}){return new Promise
 function linkParams(u){try{const s=String(u||'').trim();if(/^\d{4,}$/.test(s))return new URLSearchParams({nr:s});
   const url=new URL(s,location.href),h=new URLSearchParams(url.hash.replace(/^#/,'')),q=url.searchParams;
   const p=h.get('p')||q.get('p'),o=h.get('o')||q.get('o');if(p&&/^\d{4,}$/.test(p))return new URLSearchParams({nr:p});if(o)return new URLSearchParams({id:o})}catch(e){}return null}
+/* Zendesk-Anmeldung: Rücksprung aus dem Browser in die App (segelmacherei://zendesk?code=…&state=… oder …/werkzeuge-tablet/zendesk.html?code=…) */
+let zdHoerer=null,zdWartend=null; // nur die zuletzt geladenen Werkzeuge hören zu
+function zdLink(u){try{const url=new URL(String(u||''));const z=url.protocol==='segelmacherei:'?/zendesk/.test(url.host+url.pathname):(url.host==='segelmacherei.github.io'&&/\/zendesk\.html$/.test(url.pathname));
+  if(!z)return false;const q=url.searchParams,d={code:q.get('code'),state:q.get('state')||'',error:q.get('error'),error_description:q.get('error_description')};
+  if(!d.code&&!d.error)return false;plug('Browser','close',{}).catch(()=>{});if(zdHoerer){try{zdHoerer(d)}catch(e){zdWartend=d}}else zdWartend=d;return true}catch(e){return false}}
+function appLink(u){if(zdLink(u))return;openProjekt(linkParams(u))}
+/* Natives HTTP nur für Zendesk und den Zendesk-Worker (die App-Seite https://localhost wird dort per CORS abgewiesen) */
+async function http(url,o={}){const h=new URL(url).host;if(!(h==='segelmacherei.zendesk.com'||h==='segelmacherei-zendesk.yannicklona.workers.dev'))throw new Error('Adresse nicht erlaubt');
+  return plug('Dav','request',{method:o.method||'GET',url,headers:o.headers||{},body:o.body==null?undefined:String(o.body),contentType:(o.headers&&o.headers['Content-Type'])||'application/json',responseType:'text'})}
 let pendingLink=linkParams(location.href);
 if(pendingLink&&C.isWeb)try{history.replaceState(null,'',location.pathname)}catch(e){}
 function openProjekt(P){if(!P)return;const f=$('app');if(!f.src||f.style.display==='none'){pendingLink=P;return}
@@ -249,13 +258,15 @@ $('bRetry').onclick=start;$('bLogout').onclick=logout;$('bOffline').onclick=open
 
 /* Zurück-Taste: nicht versehentlich schliessen */
 try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backButton',()=>{if($('dlg').style.display==='flex'){$('dlgCancel').click();return}if(confirm('App schliessen?'))A.exitApp()});A.addListener('resume',()=>flushOutbox());
-  A.addListener('appUrlOpen',e=>openProjekt(linkParams(e&&e.url)))}
-  if(!C.isWeb)plug('App','getLaunchUrl').then(r=>openProjekt(linkParams(r&&r.url))).catch(()=>{})}catch(e){}
+  A.addListener('appUrlOpen',e=>appLink(e&&e.url))}
+  if(!C.isWeb)plug('App','getLaunchUrl').then(r=>appLink(r&&r.url)).catch(()=>{})}catch(e){}
 
 /* Schnittstelle für die Werkzeuge (shim.js) */
 window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,showNet,flush:flushOutbox,scan,
   /* Für die Werkzeuge: z.B. Exxas-Anmeldung des API-Benutzers, damit sie sich nach 24 h selbst erneuert (nur in der App gespeichert, wie das Nextcloud-App-Passwort) */
   secret:{get:async k=>{const v=await prefGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await prefSet('geheim:'+k,String(v));return true},del:async k=>{try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){await prefSet('geheim:'+k,null)}return true}},
+  onZendesk:f=>{zdHoerer=f;if(zdWartend){const d=zdWartend;zdWartend=null;setTimeout(()=>f(d),0)}},
+  ...(C.isWeb?{}:{http,zdApp:true}),
   openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
   get online(){return online},get user(){return cfg&&cfg.user},logout};
 
