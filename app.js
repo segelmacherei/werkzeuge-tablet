@@ -216,14 +216,17 @@ async function openTools(){if(window.__swReady)await window.__swReady;const u=aw
   const f=$('app');f.src=src+(pendingLink?'#kunde?'+pendingLink.toString():'');pendingLink=null;f.style.display='block';$('start').style.display='none'}
 
 /* ---------------- App-Update aus der Nextcloud ----------------
-   Im Ordner 04 Werkzeuge/Tablet-App liegen Segelmacherei-Werkzeuge.apk und version.txt (z.B. 1.0.10).
+   Im Ordner 04 Werkzeuge/Tablet-App liegt Segelmacherei-Werkzeuge-1.0.N.apk (Version im Namen).
    Ist die Nummer grösser als die eigene, erscheint oben ein Hinweis. Android fragt beim Installieren selbst nach. */
 let updT=0;
 async function updatePruefen(){if(C.isWeb||!cfg||Date.now()-updT<3600e3)return;updT=Date.now();
   try{const me=await plug('Update','info');const D=cfg.root+'/04 Werkzeuge/Tablet-App';
-    const r=await davRaw('GET',D+'/version.txt',{responseType:'text'});if(r.status!==200)return;
-    const neu=String(r.data||'').trim(),nr=+(neu.split('.').pop()||0);if(!nr||nr<=+me.versionCode)return;
-    updateHinweis(neu,me,D+'/Segelmacherei-Werkzeuge.apk')}catch(e){console.warn('Update-Prüfung',e)}}
+    /* Neuste Datei Segelmacherei-Werkzeuge-1.0.N.apk im Ordner; ältere Ablage: version.txt + Segelmacherei-Werkzeuge.apk */
+    let neu='',pfad='',nr=0;const L=await davList(D).catch(()=>null);
+    for(const e of (L&&L.items)||[]){const m=!e.dir&&/^Segelmacherei-Werkzeuge-(\d+)\.(\d+)\.(\d+)\.apk$/i.exec(e.name);if(m&&+m[3]>nr){nr=+m[3];neu=m[1]+'.'+m[2]+'.'+m[3];pfad=e.path}}
+    if(!nr){const r=await davRaw('GET',D+'/version.txt',{responseType:'text'});if(r.status!==200)return;neu=String(r.data||'').trim();nr=+(neu.split('.').pop()||0);pfad=D+'/Segelmacherei-Werkzeuge.apk'}
+    if(!nr||nr<=+me.versionCode)return;
+    updateHinweis(neu,me,pfad)}catch(e){console.warn('Update-Prüfung',e)}}
 function updateHinweis(neu,me,pfad){let u=$('updBar');if(u)u.remove();u=document.createElement('div');u.id='updBar';
   u.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;background:#1d2330;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(0,0,0,.35);font:15px system-ui,sans-serif;display:flex;gap:10px;align-items:center;max-width:calc(100% - 24px)';
   u.innerHTML='<span id="updT">Neue App-Version '+neu+' (jetzt '+me.versionName+')</span><button id="updGo" style="font:inherit;padding:8px 14px;border:0;border-radius:8px;background:#1f6feb;color:#fff">Aktualisieren</button><button id="updX" style="font:inherit;padding:8px 10px;border:0;border-radius:8px;background:#3a4252;color:#fff">Später</button>';
