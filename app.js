@@ -240,7 +240,7 @@ function updateHinweis(neu,me,pfad){let u=$('updBar');if(u)u.remove();u=document
 async function start(){
   $('startBtns').hidden=true;$('login').hidden=true;
   cfg=await prefGet('nc');
-  if(!cfg||!cfg.pass){showLogin();return}
+  if(!cfg||!cfg.pass){if(C.isWeb&&pendingLink){showKunde(pendingLink);return}showLogin();return}
   window.__seg.root=cfg.root;
   msg('Werkzeuge werden aktualisiert …');
   try{const n=await syncTools();msg(n?n+' Werkzeug(e) aktualisiert':'Werkzeuge sind aktuell');flushOutbox();await openTools();updatePruefen()}
@@ -260,6 +260,32 @@ async function loginWeb(){let srv=$('srv').value.trim().replace(/\/+$/,'');if(!/
     await prefSet('nc',cfg);await prefSet('toolsManifest',{});msg('Angemeldet als '+user);return start()}
   catch(e){cfg=null;msg(e instanceof AuthErr?'Benutzername oder App-Passwort falsch.':e instanceof NetErr?'Keine Verbindung zu Nextcloud.\n\nWenn Internet da ist: In Nextcloud unter Verwaltung → WebAppPassword muss diese Adresse erlaubt sein: '+location.origin:(e.message||String(e)),true)}
   finally{$('bLogin').disabled=false}}
+/* ---------------- Kundenseite: QR-Code vom Etikett, gescannt von einem Kunden (nicht angemeldet) ---------------- */
+const FIRMA={name:'Schmidhauser Segelmacherei GmbH',strasse:'Werdstrasse 10',ort:'9410 Heiden',tel:'+41 245 50 50',mail:'info@segelmacherei.ch',web:'https://www.segelmacherei.ch',
+  logo:'https://www.segelmacherei.ch/wp-content/uploads/2022/04/segelmacherei_schmidhauser_white.svg'};
+function showKunde(P){const nr=P&&P.get('nr')||'',e=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const betreff='Service Sonnensegel'+(nr?' – Auftrag '+nr:''),body='Guten Tag\n\nIch habe eine Frage / brauche Service zu meinem Sonnensegel'+(nr?' (Auftrag '+nr+')':'')+'.\n\nName:\nAdresse:\nTelefon:\nAnliegen:\n\nFreundliche Grüsse';
+  document.title='Ihr Sonnensegel – '+FIRMA.name;$('start').style.display='none';
+  const d=document.createElement('div');d.id='kundeSeite';
+  d.innerHTML=`<style>#kundeSeite{position:fixed;inset:0;overflow:auto;background:#0f1d33;display:flex;justify-content:center;padding:20px 14px 40px}
+    #kundeSeite .k{max-width:480px;width:100%}#kundeSeite .kh{display:flex;align-items:center;justify-content:center;padding:10px 0 20px}#kundeSeite .kh img{height:58px;max-width:80%}
+    #kundeSeite .kc{background:#fff;border-radius:16px;padding:24px 22px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+    #kundeSeite h1{font-size:23px;margin:0 0 6px;line-height:1.25}#kundeSeite .nr{display:inline-block;background:#eef3fb;color:#1a4fa0;border-radius:999px;padding:4px 12px;font-weight:600;font-size:14px;margin:4px 0 14px}
+    #kundeSeite p{color:#4a5363;font-size:15.5px;line-height:1.5;margin:8px 0}
+    #kundeSeite a.kb{display:flex;align-items:center;gap:12px;text-decoration:none;color:#1d2433;border:1px solid #d7dce5;border-radius:12px;padding:14px 16px;margin-top:10px;font-size:17px;font-weight:600}
+    #kundeSeite a.kb.pri{background:#1a73e8;border-color:#1a73e8;color:#fff}#kundeSeite a.kb small{display:block;font-weight:400;font-size:13.5px;opacity:.8}
+    #kundeSeite h2{font-size:16px;margin:22px 0 6px}#kundeSeite ul{margin:0;padding-left:20px;color:#4a5363;font-size:15px;line-height:1.55}
+    #kundeSeite .kf{color:#aab3c5;font-size:13.5px;text-align:center;margin-top:18px;line-height:1.6}#kundeSeite .kf a{color:#cfd6e4}
+    #kundeSeite button{font:inherit;font-size:13px;background:none;border:0;color:#7f8aa0;margin-top:14px;cursor:pointer;text-decoration:underline}</style>
+   <div class="k"><div class="kh"><img src="${FIRMA.logo}" alt="${e(FIRMA.name)}" onerror="this.outerHTML='<b style=&quot;color:#fff;font-size:20px&quot;>${e(FIRMA.name)}</b>'"></div>
+    <div class="kc"><h1>Ihr Sonnensegel von der Segelmacherei</h1>${nr?`<span class="nr">Auftrag ${e(nr)}</span>`:''}
+     <p>Danke, dass Sie sich für ein Segel aus unserer Werkstatt entschieden haben. Bei Fragen, Service oder Ersatzteilen sind wir gerne für Sie da${nr?' – die Auftragsnummer hilft uns, Ihr Segel sofort zu finden':''}.</p>
+     <a class="kb pri" href="mailto:${FIRMA.mail}?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(body)}">✉<span>Service oder Ersatzteil anfragen<small>E-Mail an ${e(FIRMA.mail)}${nr?' mit Ihrer Auftragsnummer':''}</small></span></a>
+     <a class="kb" href="tel:${FIRMA.tel.replace(/\s/g,'')}">📞<span>Anrufen<small>${e(FIRMA.tel)}</small></span></a>
+     <a class="kb" href="${FIRMA.web}" target="_blank" rel="noopener">🌐<span>Zur Webseite<small>www.segelmacherei.ch</small></span></a>
+     <h2>Pflege-Tipps</h2><ul><li>Bei Sturm, starkem Wind oder Schnee das Segel einrollen bzw. abnehmen.</li><li>Über den Winter trocken und sauber eingelagert aufbewahren.</li><li>Reinigen mit Wasser und milder Seife – keinen Hochdruckreiniger.</li><li>Spanner und Befestigungen ab und zu kontrollieren.</li></ul></div>
+    <div class="kf"><b>${e(FIRMA.name)}</b><br>${e(FIRMA.strasse)} · ${e(FIRMA.ort)}<br><a href="${FIRMA.web}" target="_blank" rel="noopener">www.segelmacherei.ch</a><br><button type="button" id="kMa">Mitarbeiter-Anmeldung</button></div></div>`;
+  document.body.append(d);$('kMa').onclick=()=>{d.remove();$('start').style.display='';document.title='Segelmacherei Werkzeuge';showLogin()}}
 /* ---------------- Anmeldung (Nextcloud Login Flow v2) ---------------- */
 function showLogin(){$('login').hidden=false;$('startBtns').hidden=true;if(C.isWeb){$('webLogin').hidden=false;$('bLogin').textContent='Anmelden'}if(!$('msg').classList.contains('bad'))msg(C.isWeb?'Einmalig anmelden mit einem App-Passwort aus Nextcloud (Einstellungen → Sicherheit → „Neues App-Passwort erstellen“). Es kann dort jederzeit gesperrt werden.':'Einmalig mit dem Nextcloud-Konto anmelden. Das Passwort wird nicht in der App gespeichert – Nextcloud gibt der App ein eigenes App-Passwort, das man in Nextcloud jederzeit sperren kann.')}
 async function login(){if(C.isWeb)return loginWeb();
