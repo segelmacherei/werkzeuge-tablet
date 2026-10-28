@@ -3,11 +3,11 @@
    Dieser Worker macht nur das: Er nimmt Code + PKCE-Prüfwert entgegen und holt bei Zendesk den Schlüssel
    (/token) bzw. erneuert ihn mit dem refresh_token (/refresh), damit man sich nicht ständig neu anmelden muss.
    Optional leitet er die zwei Lese-Abfragen der Kunden-Übersicht weiter (falls Zendesk sie im Browser blockiert).
-   Er speichert nichts und kennt keine Passwörter. Erlaubt sind nur die Werkzeuge (github.io, lokale Datei, Windows-Programm). */
+   Er speichert nichts und kennt keine Passwörter. Erlaubt sind nur die Werkzeuge (app.segelmacherei.ch, github.io, lokale Datei, Windows-Programm). */
 const ZD = 'https://segelmacherei.zendesk.com';
 const CLIENT = 'segelmacherei_werkzeuge';
 const REDIRECT = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html';
-const ORIGINS = ['https://segelmacherei.github.io', 'null', 'file://']; // file:// = Windows-Programm
+const ORIGINS = ['https://app.segelmacherei.ch', 'https://segelmacherei.github.io', 'null', 'file://']; // file:// = Windows-Programm
 // Windows-Programm (Electron, file://) schickt gar keinen Origin mit → leer auch zulassen (der Worker kennt keine Geheimnisse)
 const OK = o => o === '' || ORIGINS.includes(o) || /^file:/.test(o);
 const API_OK = [/^\/api\/v2\/users\/search\.json$/, /^\/api\/v2\/users\/\d+\/tickets\/requested\.json$/, /^\/api\/v2\/users\/me\.json$/, /^\/api\/v2\/organizations\/\d+\/tickets\.json$/, /^\/api\/v2\/search\.json$/, /^\/api\/v2\/tickets\.json$/, /^\/api\/v2\/users\/show_many\.json$/];

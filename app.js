@@ -155,13 +155,13 @@ function picker({mode='dir',start,suggestedName='',title}={}){return new Promise
   D.style.display='flex';show()})}
 
 /* ---------------- QR-Code vom Auftrag: Projekt öffnen ----------------
-   Inhalt: https://segelmacherei.github.io/werkzeuge-tablet/#p=<Exxas-Nr>  (ohne Nr.: #o=<Ordner>) oder nur die Nummer */
+   Inhalt: https://app.segelmacherei.ch/#p= (früher https://segelmacherei.github.io/werkzeuge-tablet/#p=)<Exxas-Nr>  (ohne Nr.: #o=<Ordner>) oder nur die Nummer */
 function linkParams(u){try{const s=String(u||'').trim();if(/^\d{4,}$/.test(s))return new URLSearchParams({nr:s});
   const url=new URL(s,location.href),h=new URLSearchParams(url.hash.replace(/^#/,'')),q=url.searchParams;
   const p=h.get('p')||q.get('p'),o=h.get('o')||q.get('o');if(p&&/^\d{4,}$/.test(p))return new URLSearchParams({nr:p});if(o)return new URLSearchParams({id:o})}catch(e){}return null}
 /* Zendesk-Anmeldung: Rücksprung aus dem Browser in die App (segelmacherei://zendesk?code=…&state=… oder …/werkzeuge-tablet/zendesk.html?code=…) */
 let zdHoerer=null,zdWartend=null; // nur die zuletzt geladenen Werkzeuge hören zu
-function zdLink(u){try{const url=new URL(String(u||''));const z=url.protocol==='segelmacherei:'?/zendesk/.test(url.host+url.pathname):(url.host==='segelmacherei.github.io'&&/\/zendesk\.html$/.test(url.pathname));
+function zdLink(u){try{const url=new URL(String(u||''));const z=url.protocol==='segelmacherei:'?/zendesk/.test(url.host+url.pathname):((url.host==='segelmacherei.github.io'||url.host==='app.segelmacherei.ch')&&/\/zendesk\.html$/.test(url.pathname));
   if(!z)return false;const q=url.searchParams,d={code:q.get('code'),state:q.get('state')||'',error:q.get('error'),error_description:q.get('error_description')};
   if(!d.code&&!d.error)return false;plug('Browser','close',{}).catch(()=>{});if(zdHoerer){try{zdHoerer(d)}catch(e){zdWartend=d}}else zdWartend=d;return true}catch(e){return false}}
 function appLink(u){if(zdLink(u))return;openProjekt(linkParams(u))}
