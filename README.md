@@ -3,6 +3,6 @@
 Hülle für die Werkzeuge der Schmidhauser Segelmacherei auf dem Tablet.
 Die Werkzeuge und alle Daten bleiben in der eigenen Nextcloud; diese Seite enthält nur die App (Anmeldung, Dateizugriff über WebDAV, Offline-Speicher).
 
-Adresse: https://segelmacherei.github.io/werkzeuge-tablet/
+Adresse: https://app.segelmacherei.ch/ (alte Adresse https://segelmacherei.github.io/werkzeuge-tablet/ leitet automatisch weiter)
 
 Quelle: Repository `segelmacherei-tablet`, Ordner `web/dist`.
