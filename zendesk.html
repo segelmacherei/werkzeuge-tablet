@@ -22,15 +22,17 @@ button{font:inherit;font-size:15px;padding:10px 16px;border-radius:9px;border:1p
    und gibt ihn an die Werkzeuge zurück. Der Schlüssel wird hier nicht gespeichert (ausser beim Test ohne öffnendes Fenster). */
 const WORKER='https://segelmacherei-zendesk.yannicklona.workers.dev';
 const SUB='segelmacherei',CLIENT='segelmacherei_werkzeuge',SCOPE='tickets:read users:read';
-const REDIRECT=location.origin+location.pathname;
+const REDIRECT='https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html'; // muss zum Worker und zu den Werkzeugen passen (github.io leitet auf app.segelmacherei.ch weiter)
 const $=id=>document.getElementById(id);
+let opHerkunft='*'; // Herkunft des öffnenden Fensters (Windows-Programm/lokale Datei: „null“ → '*')
 const say=(t,c)=>{const m=$('msg');m.textContent=t;m.className=c||''};
 const b64u=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 async function pkce(){const v=b64u(crypto.getRandomValues(new Uint8Array(48)));const c=b64u(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));return {v,c}}
 function authUrl(state,challenge){const q=new URLSearchParams({response_type:'code',client_id:CLIENT,redirect_uri:REDIRECT,scope:SCOPE,state,code_challenge:challenge,code_challenge_method:'S256'});return `https://${SUB}.zendesk.com/oauth/authorizations/new?${q}`}
 function fromOpener(state){return new Promise((res,rej)=>{if(!window.opener){rej(new Error('kein Fenster'));return}
   const t=setTimeout(()=>{removeEventListener('message',h);rej(new Error('Keine Antwort von den Werkzeugen'))},3000);
-  function h(e){const d=e.data;if(!d||d.app!=='werkzeuge'||d.type!=='zd:verifier'||d.state!==state)return;clearTimeout(t);removeEventListener('message',h);res(d.verifier)}
+  // nur die Antwort des öffnenden Fensters zählt; der Schlüssel geht später nur an genau diese Herkunft
+  function h(e){const d=e.data;if(e.source!==window.opener||!d||d.app!=='werkzeuge'||d.type!=='zd:verifier'||d.state!==state)return;clearTimeout(t);removeEventListener('message',h);opHerkunft=e.origin&&e.origin!=='null'?e.origin:'*';res(d.verifier)}
   addEventListener('message',h);window.opener.postMessage({app:'werkzeuge',type:'zd:need',state},'*')})}
 async function tausch(code,verifier){
   // Zendesk erlaubt diesen Tausch nicht direkt aus dem Browser → über den Worker der Segelmacherei (Cloudflare)
@@ -65,7 +67,7 @@ async function test(tok){const H={Authorization:'Bearer '+tok};let r,via='direkt
         say('Fast fertig: Zurück zur Segelmacherei-App wechseln – die Verbindung wird dort abgeschlossen. Dieses Fenster kann geschlossen werden.','ok');
         try{setTimeout(()=>window.close(),2500)}catch(x){}return}}
       const j=await tausch(code,v);
-      if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null,refresh_token:j.refresh_token||null},'*');
+      if(window.opener){window.opener.postMessage({app:'werkzeuge',type:'zd:token',state,token:j.access_token,expires_in:j.expires_in||null,refresh_token:j.refresh_token||null},opHerkunft);
         say('Verbunden. Dieses Fenster schliesst sich.','ok');setTimeout(()=>window.close(),900)}
       else{try{localStorage.setItem('werkzeuge.zendesk',JSON.stringify({token:j.access_token,refresh:j.refresh_token||null,seit:new Date().toISOString(),ablauf:j.expires_in?Date.now()+j.expires_in*1000:null}))}catch(e){}
         let n='';try{n=await test(j.access_token)}catch(e){}

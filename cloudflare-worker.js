@@ -18,10 +18,19 @@ function cors(origin) {
   return h;
 }
 const json = (obj, status, origin) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', ...cors(origin) } });
+/* Hinweis: Der Worker protokolliert nichts (keine Codes/Schlüssel in Logs). */
 
 export default {
   async fetch(req) {
     const origin = req.headers.get('Origin') || '';
+    // Zendesk nicht erreichbar o.ä. → verständlicher Fehler MIT CORS-Kopfzeilen (sonst sieht der Browser nur „CORS-Fehler“)
+    try { return await bearbeite(req, origin); }
+    catch (e) { return json({ error: 'upstream_error', error_description: 'Zendesk ist im Moment nicht erreichbar. Bitte später nochmals versuchen.' }, 502, origin); }
+  }
+};
+
+async function bearbeite(req, origin) {
+  {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
     if (!OK(origin)) return json({ error: 'forbidden' }, 403, origin);
@@ -29,7 +38,7 @@ export default {
     if (url.pathname === '/token' && req.method === 'POST') {
       let b = {};
       try { b = await req.json(); } catch (e) {}
-      if (!b.code || !b.code_verifier) return json({ error: 'invalid_request' }, 400, origin);
+      if (typeof b.code !== 'string' || typeof b.code_verifier !== 'string' || b.code.length > 500 || b.code_verifier.length > 200) return json({ error: 'invalid_request' }, 400, origin);
       const r = await fetch(ZD + '/oauth/tokens', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grant_type: 'authorization_code', code: String(b.code), client_id: CLIENT, redirect_uri: REDIRECT, code_verifier: String(b.code_verifier), scope: 'tickets:read users:read' })
@@ -51,7 +60,7 @@ export default {
       return new Response(t, { status: r.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } });
     }
 
-    if (req.method === 'GET' && API_OK.some(rx => rx.test(url.pathname))) {
+    if (req.method === 'GET' && API_OK.some(rx => rx.test(url.pathname)) && url.search.length <= 2000) {
       const auth = req.headers.get('Authorization') || '';
       if (!/^Bearer [\w.-]+$/.test(auth)) return json({ error: 'unauthorized' }, 401, origin);
       const r = await fetch(ZD + url.pathname + url.search, { headers: { Authorization: auth, Accept: 'application/json' } });
@@ -60,4 +69,4 @@ export default {
     }
     return json({ error: 'not_found' }, 404, origin);
   }
-};
+}

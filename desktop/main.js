@@ -8,6 +8,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu, session, nativeImage } = require('electron');
 const path = require('path'), fs = require('fs'), fsp = fs.promises;
 const kern = require('./kern');
+const { fileURLToPath } = require('url');
 
 const PROTO = 'segelmacherei';
 app.setAppUserModelId('ch.segelmacherei.werkzeuge');
@@ -68,6 +69,23 @@ async function rootBestimmen(neuWaehlen) {
 }
 
 /* ---------- Schnittstelle für die Werkzeuge (preload.js) ---------- */
+/* Nur Seiten aus dem Nextcloud-Ordner (04-Vertrieb) gelten als Werkzeuge – nicht irgendeine HTML-Datei auf dem PC */
+function imRoot(url) {
+  const drin = (b, p) => { const r = path.relative(b, p); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)); };
+  try {
+    if (!FS || !/^file:/i.test(String(url || ''))) return false;
+    const p = fileURLToPath(url); if (drin(FS.root, p)) return true;
+    // Kurznamen (C:\Users\RUNNER~1), Laufwerks-Verknüpfungen usw.: echte Pfade vergleichen
+    return drin(fs.realpathSync.native(FS.root), fs.realpathSync.native(p));
+  } catch (e) { return false; }
+}
+/* openPath startet Dateien mit dem Standardprogramm – Programme/Skripte nie (sonst könnte ein Werkzeug Schadcode schreiben und starten) */
+const AUSFUEHRBAR = /\.(exe|com|bat|cmd|msi|msp|mst|scr|pif|cpl|hta|js|jse|vbs|vbe|wsf|wsh|wsc|ws|ps1|psm1|psd1|lnk|url|reg|jar|appref-ms|application|gadget|msc|inf|scf|sct|chm|dll|ocx|sys|drv|iso|img|vhd|vhdx|settingcontent-ms|library-ms|search-ms|appx|appxbundle|msix|msixbundle|diagcab|xll|website|mht|mhtml|xbap|py|pyw|pl|rb)$/i;
+function darfOeffnen(real) {
+  try { if (fs.statSync(real).isDirectory()) return true; } catch (e) {}
+  const n = path.basename(real).replace(/[. ]+$/, '');
+  return !n.includes(':') && !AUSFUEHRBAR.test(n);
+}
 const erlaubt = new Set(['list', 'stat', 'read', 'write', 'mkdir', 'remove', 'move', 'picker', 'save', 'openUrl', 'openPath', 'info', 'secretGet', 'secretSet', 'secretDel']);
 ipcMain.handle('seg', async (ev, k, ...a) => {
   try {
@@ -75,6 +93,7 @@ ipcMain.handle('seg', async (ev, k, ...a) => {
     if (!url.startsWith('file:')) return { __err: 1, name: 'SecurityError', message: 'Nicht erlaubt' };
     if (!erlaubt.has(k)) return { __err: 1, name: 'NotSupportedError', message: 'Unbekannt: ' + k };
     if (!FS) return { __err: 1, name: 'NotFoundError', message: 'Kein Nextcloud-Ordner gewählt' };
+    if (!imRoot(url)) return { __err: 1, name: 'SecurityError', message: 'Nur für Werkzeuge aus dem Nextcloud-Ordner' };
     switch (k) {
       case 'list': return await FS.list(a[0]);
       case 'stat': return await FS.stat(a[0]);
@@ -86,7 +105,8 @@ ipcMain.handle('seg', async (ev, k, ...a) => {
       case 'picker': return await picker(a[0] || {});
       case 'save': return await sichern(String(a[0] || 'Datei'), a[1]);
       case 'openUrl': { const u = String(a[0] || ''); if (/^(https?|mailto|tel):/i.test(u)) await shell.openExternal(u); return true; }
-      case 'openPath': { const r = FS.toReal(a[0]); const e = await shell.openPath(r); return e ? { __err: 1, name: 'NotFoundError', message: e } : true; }
+      case 'openPath': { const r = FS.toReal(a[0]); if (!darfOeffnen(r)) return { __err: 1, name: 'NotAllowedError', message: 'Programme und Skripte werden aus Sicherheitsgründen nicht geöffnet: ' + path.basename(r) };
+        const e = await shell.openPath(r); return e ? { __err: 1, name: 'NotFoundError', message: e } : true; }
       case 'info': return { version: app.getVersion(), root: FS.root, plattform: process.platform, verschluesselung: safeStorage.isEncryptionAvailable() };
       case 'secretGet': { const o = geheimLesen(), v = o[String(a[0])]; if (!v || !safeStorage.isEncryptionAvailable()) return null; try { return safeStorage.decryptString(Buffer.from(v, 'base64')); } catch (e) { return null; } }
       case 'secretSet': { if (!safeStorage.isEncryptionAvailable()) return { __err: 1, name: 'NotSupportedError', message: 'Verschlüsselung nicht verfügbar' };
@@ -156,7 +176,7 @@ function fenster() {
   const merke = () => { if (!win || win.isDestroyed()) return; const max = win.isMaximized(); cfg.fenster = { ...(max ? cfg.fenster || {} : win.getBounds()), max }; speichern(); };
   win.on('close', merke);
   win.on('closed', () => { win = null; });
-  win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url); } });
+  win.webContents.on('will-navigate', (e, url) => { if (!imRoot(url)) { e.preventDefault(); if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url); } });
   win.webContents.on('page-title-updated', (e) => { e.preventDefault(); });
   win.webContents.on('did-fail-load', (e, code, desc, url, main) => {
     if (main) dialog.showMessageBox(win, { type: 'error', title: 'Werkzeuge nicht gefunden', message: 'Die Werkzeuge konnten nicht geöffnet werden.', detail: desc + '\n' + url + '\n\nIst Nextcloud fertig synchronisiert? Sonst im Menü (Alt) „Nextcloud-Ordner wählen…“.' });
@@ -166,19 +186,19 @@ function fenster() {
 /* Neue Fenster: Zendesk-Anmeldung und PDF-Vorschau im Programm, alles andere im normalen Browser */
 function fensterRegel(url) {
   const klein = { width: 560, height: 760, autoHideMenuBar: true, icon: nativeImage.createFromPath(ICON) };
-  if (/^https:\/\/[a-z0-9-]+\.zendesk\.com\/(oauth|access|auth)\//i.test(url) || /^https:\/\/segelmacherei\.github\.io\/werkzeuge-tablet\/zendesk\.html/i.test(url))
+  if (/^https:\/\/[a-z0-9-]+\.zendesk\.com\/(oauth|access|auth)\//i.test(url) || /^https:\/\/(segelmacherei\.github\.io\/werkzeuge-tablet|app\.segelmacherei\.ch)\/zendesk\.html/i.test(url))
     return { action: 'allow', overrideBrowserWindowOptions: { ...klein, webPreferences: { preload: undefined, nodeIntegrationInSubFrames: false, sandbox: true, contextIsolation: true } } };
-  if (/^(blob:|file:|about:blank|data:application\/pdf)/i.test(url) || url === '')
+  if (/^(blob:|about:blank|data:application\/pdf)/i.test(url) || url === '' || imRoot(url))
     return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 850, autoHideMenuBar: true, icon: nativeImage.createFromPath(ICON) } };
   if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url);
   return { action: 'deny' };
 }
 /* Zendesk-Anmeldung: Rücksprung (zendesk.html?code=…) hier abfangen und an die Werkzeuge geben.
    Nötig, weil Zendesk die Verbindung zum öffnenden Fenster (window.opener) trennt. */
-const ZD_RUECK = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html';
+const ZD_RUECK = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html', ZD_RUECK2 = 'https://app.segelmacherei.ch/zendesk.html'; // github.io leitet auf die eigene Adresse weiter
 function zdFang(wc) {
   const f = (e, url) => {
-    if (!String(url || '').startsWith(ZD_RUECK)) return;
+    if (!String(url || '').startsWith(ZD_RUECK) && !String(url || '').startsWith(ZD_RUECK2)) return;
     let u; try { u = new URL(url); } catch (x) { return; }
     const code = u.searchParams.get('code'), error = u.searchParams.get('error');
     if (!code && !error) return;
@@ -245,7 +265,8 @@ function updates(manuell) {
 
 /* ---------- Start ---------- */
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'geolocation', 'clipboard-read', 'clipboard-sanitized-write', 'fullscreen', 'notifications', 'pointerLock', 'fileSystem'].includes(perm)));
+  // Kamera, Standort usw. nur für die Werkzeuge (file://), nicht für Anmeldefenster/fremde Seiten; Vollbild überall
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, d) => cb(perm === 'fullscreen' || (['media', 'geolocation', 'clipboard-read', 'clipboard-sanitized-write', 'notifications', 'pointerLock', 'fileSystem'].includes(perm) && /^file:/i.test(String((d && d.requestingUrl) || (wc && wc.getURL()) || '')))));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => ['media', 'geolocation', 'clipboard-read', 'clipboard-sanitized-write', 'fullscreen', 'notifications', 'fileSystem'].includes(perm));
   menue();
   const r = await rootBestimmen(false);

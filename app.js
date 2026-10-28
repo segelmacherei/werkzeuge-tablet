@@ -21,7 +21,8 @@ async function prefSet(k,v){try{await plug('Preferences','set',{key:k,value:JSON
 const b64utf8=s=>btoa(unescape(encodeURIComponent(s)));
 function bytesToB64(u8){let s='';const n=0x8000;for(let i=0;i<u8.length;i+=n)s+=String.fromCharCode.apply(null,u8.subarray(i,i+n));return btoa(s)}
 function b64ToBytes(b){const s=atob(b||'');const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
-const norm=p=>('/'+String(p||'').split('/').filter(Boolean).join('/'));
+/* Pfade immer innerhalb des eigenen Nextcloud-Kontos: „.“ fällt weg, „..“ ist verboten (sonst Ausbruch aus /remote.php/dav/files/<benutzer>) */
+const norm=p=>{const t=String(p||'').split('/').filter(s=>s&&s!=='.');if(t.includes('..'))throw Object.assign(new Error('Ungültiger Pfad (enthält „..“): '+p),{name:'SecurityError'});return '/'+t.join('/')};
 const parentOf=p=>{const a=norm(p).split('/');a.pop();return a.join('/')||'/'};
 const nameOf=p=>norm(p).split('/').pop();
 const encPath=p=>norm(p).split('/').map(encodeURIComponent).join('/');
@@ -40,8 +41,9 @@ async function davRaw(method,path,o={}){
   let r;try{r=await plug('Dav','request',{method,url:davBase()+encPath(path)+(o.slash?'/':''),headers,body:o.body,bodyBase64:o.bodyBase64,contentType:o.contentType,responseType:o.responseType||'text'})}
   catch(e){setOnline(false);throw new NetErr('Keine Verbindung zu Nextcloud')}
   if(!online)setOnline(true);
-  if(r.status===401)throw new AuthErr();
+  if(r.status===401){if($('app').style.display==='block')showNet('Nextcloud lehnt die Anmeldung ab (App-Passwort gesperrt?) – bitte abmelden und neu anmelden.',8000);throw new AuthErr()}
   return r}
+const etagAus=h=>{h=h||{};const v=h['oc-etag']||h['etag']||'';return v?String(v).replace(/^W\//,'').replace(/"/g,''):null};
 const PROPS='<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getlastmodified/><d:getcontentlength/><d:getetag/></d:prop></d:propfind>';
 function parseMS(xml){const doc=new DOMParser().parseFromString(xml,'application/xml'),NS='DAV:',out=[];
   const basePath=decodeURIComponent(new URL(davBase()).pathname).replace(/\/+$/,'');
@@ -88,41 +90,70 @@ function merge(path,items){const it=items.slice();
   return it.filter(e=>!outbox.some(o=>o.del&&o.path===e.path))}
 async function stat(path){path=norm(path);if(path==='/')return {path:'/',name:'',dir:true};const L=await list(parentOf(path));if(!L)return null;return L.find(e=>e.path===path)||null}
 
-async function read(path){path=norm(path);await loadOutbox();const ob=obFind(path);
-  if(ob&&!ob.del){const b=await fsR(ob.file);return {bytes:b64ToBytes(b),mtime:ob.t}}
+/* Zuletzt bekannte Version (ETag) jeder gelesenen/geschriebenen Datei. Damit überschreibt eine offline gespeicherte Datei beim
+   späteren Hochladen keine Änderung, die inzwischen ein anderes Gerät gemacht hat (dann → Konfliktkopie, die Hülle führt sie zusammen). */
+let etags=null,etagT=0;
+async function etagMap(){if(!etags)etags=(await prefGet('etags'))||{};return etags}
+function etagMerk(path,tag){if(!etags)return;delete etags[path];if(tag)etags[path]=tag;
+  const k=Object.keys(etags);if(k.length>800)for(const x of k.slice(0,k.length-800))delete etags[x];
+  clearTimeout(etagT);etagT=setTimeout(()=>prefSet('etags',etags),1500)}
+const zwei=n=>String(n).padStart(2,'0');
+function konfliktPfad(p){const d=new Date(),st=d.getFullYear()+'-'+zwei(d.getMonth()+1)+'-'+zwei(d.getDate())+' '+zwei(d.getHours())+zwei(d.getMinutes())+zwei(d.getSeconds());
+  const n=nameOf(p),i=n.lastIndexOf('.'),b=i>0?n.slice(0,i):n,x=i>0?n.slice(i):'';return parentOf(p).replace(/\/$/,'')+'/'+b+' (conflicted copy '+st+' Tablet)'+x}
+
+async function read(path){path=norm(path);await loadOutbox();await etagMap();const ob=obFind(path);
+  if(ob&&ob.del)throw Object.assign(new Error('Datei nicht gefunden: '+path),{name:'NotFoundError'});
+  if(ob){const b=await fsR(ob.file);return {bytes:b64ToBytes(b),mtime:ob.t}}
   try{const r=await davRaw('GET',path,{responseType:'base64'});if(r.status===404)throw Object.assign(new Error('Datei nicht gefunden: '+path),{name:'NotFoundError'});
     if(r.status>=300)throw new Error('Lesefehler '+r.status);
-    const lm=Date.parse((r.headers||{})['last-modified'])||Date.now();
+    const lm=Date.parse((r.headers||{})['last-modified'])||Date.now();etagMerk(path,etagAus(r.headers));
     if((r.data||'').length<15e6)fsW(cacheFile(path),r.data).catch(()=>{});
     return {bytes:b64ToBytes(r.data),mtime:lm}}
   catch(e){if(!(e instanceof NetErr))throw e;try{const b=await fsR(cacheFile(path));return {bytes:b64ToBytes(b),mtime:0}}catch(_){throw new NetErr('Offline – diese Datei ist auf dem Tablet nicht gespeichert: '+nameOf(path))}}}
 
-async function write(path,bytes){path=norm(path);await loadOutbox();const b64=bytesToB64(bytes);
+const schreibt=new Set(); // Pfade, die gerade online gespeichert werden (das Hochladen des Ausgangs überspringt sie)
+async function write(path,bytes){path=norm(path);await loadOutbox();await etagMap();const b64=bytesToB64(bytes);
+  if(flushP)await flushP.catch(()=>{}); // nie gleichzeitig mit dem Hochladen einer älteren Offline-Fassung derselben Datei
   const put=()=>davRaw('PUT',path,{bodyBase64:b64,contentType:'application/octet-stream'});
+  schreibt.add(path);
   try{let r=await put();if(r.status===409||r.status===404){await davMkcolDeep(parentOf(path));r=await put()}
     if(r.status>=300)throw new Error('Speichern fehlgeschlagen ('+r.status+')');
-    mem.delete(parentOf(path));fsW(cacheFile(path),b64).catch(()=>{});
+    mem.delete(parentOf(path));fsW(cacheFile(path),b64).catch(()=>{});etagMerk(path,etagAus(r.headers));
     const i=outbox.findIndex(o=>o.path===path);if(i>=0){fsDel(outbox[i].file);outbox.splice(i,1);saveOutbox()}
     return {offline:false}}
   catch(e){if(!(e instanceof NetErr))throw e;
     const file='ob/'+Date.now()+'-'+Math.random().toString(36).slice(2,8);await fsW(file,b64);
-    const i=outbox.findIndex(o=>o.path===path);if(i>=0){fsDel(outbox[i].file);outbox.splice(i,1)}
-    outbox.push({path,file,t:Date.now(),size:bytes.length});await saveOutbox();fsW(cacheFile(path),b64).catch(()=>{});
-    showNet('Offline gespeichert: '+nameOf(path)+' – wird hochgeladen, sobald Netz da ist',5000);return {offline:true}}}
+    const i=outbox.findIndex(o=>o.path===path);let base=etags[path];
+    if(i>=0){if(outbox[i].file)fsDel(outbox[i].file);if(outbox[i].base)base=outbox[i].base;outbox.splice(i,1)}
+    outbox.push({path,file,t:Date.now(),size:bytes.length,...(base?{base}:{})});await saveOutbox();fsW(cacheFile(path),b64).catch(()=>{});
+    showNet('Offline gespeichert: '+nameOf(path)+' – wird hochgeladen, sobald Netz da ist',5000);return {offline:true}}
+  finally{schreibt.delete(path)}}
 
 async function mkdir(path){path=norm(path);try{const r=await davRaw('MKCOL',path);if(r.status===409){await davMkcolDeep(path)}else if(r.status!==201&&r.status!==405)throw new Error('Ordner konnte nicht erstellt werden ('+r.status+')');mem.delete(parentOf(path))}
   catch(e){if(!(e instanceof NetErr))throw e;/* offline: Ordner entsteht beim Hochladen */}}
 async function remove(path){path=norm(path);try{const r=await davRaw('DELETE',path);if(r.status>=300&&r.status!==404)throw new Error('Löschen fehlgeschlagen ('+r.status+')');mem.delete(parentOf(path))}
-  catch(e){if(!(e instanceof NetErr))throw e;await loadOutbox();outbox=outbox.filter(o=>o.path!==path);outbox.push({path,del:true,t:Date.now()});await saveOutbox()}}
+  catch(e){if(!(e instanceof NetErr))throw e;await loadOutbox();
+    outbox=outbox.filter(o=>{const weg=o.path===path||o.path.startsWith(path+'/');if(weg&&o.file)fsDel(o.file);return !weg});outbox.push({path,del:true,t:Date.now()});await saveOutbox()}}
 
-let flushing=false;
-async function flushOutbox(){await loadOutbox();if(flushing||!outbox.length||!cfg)return;flushing=true;let n=0;
+let flushP=null;
+function flushOutbox(){if(flushP)return flushP;flushP=flushIntern().finally(()=>{flushP=null});return flushP}
+async function flushIntern(){await loadOutbox();if(!outbox.length||!cfg)return;await etagMap();let n=0;const konf=[],fehl=[];
   try{for(const o of outbox.slice()){
+      if(!outbox.includes(o)||schreibt.has(o.path))continue;
       if(o.del){const r=await davRaw('DELETE',o.path);if(r.status<300||r.status===404){outbox=outbox.filter(x=>x!==o);n++}continue}
-      const b64=await fsR(o.file);let r=await davRaw('PUT',o.path,{bodyBase64:b64,contentType:'application/octet-stream'});
-      if(r.status===409||r.status===404){await davMkcolDeep(parentOf(o.path));r=await davRaw('PUT',o.path,{bodyBase64:b64,contentType:'application/octet-stream'})}
-      if(r.status<300){fsDel(o.file);outbox=outbox.filter(x=>x!==o);mem.delete(parentOf(o.path));n++}}
-  }catch(e){}finally{await saveOutbox();flushing=false;if(n)showNet(n===1?'1 Datei hochgeladen':n+' Dateien hochgeladen',3000)}}
+      let ziel=o.path;
+      if(o.base){const st=await davStat(o.path).catch(e=>{if(e instanceof NetErr||e instanceof AuthErr)throw e;return null});
+        if(st&&st.etag&&st.etag!==o.base)ziel=konfliktPfad(o.path)} // inzwischen auf einem anderen Gerät geändert
+      const b64=await fsR(o.file);let r=await davRaw('PUT',ziel,{bodyBase64:b64,contentType:'application/octet-stream'});
+      if(r.status===409||r.status===404){await davMkcolDeep(parentOf(ziel));r=await davRaw('PUT',ziel,{bodyBase64:b64,contentType:'application/octet-stream'})}
+      if(r.status<300){fsDel(o.file);outbox=outbox.filter(x=>x!==o);mem.delete(parentOf(o.path));n++;
+        if(ziel!==o.path){konf.push(nameOf(o.path));etagMerk(o.path,null);fsDel(cacheFile(o.path))}else etagMerk(o.path,etagAus(r.headers))}
+      else fehl.push(nameOf(o.path)+' ('+r.status+')')}
+  }catch(e){}finally{await saveOutbox();
+    if(konf.length){const auto=konf.every(x=>/^(Einsatzplan|Projektdaten|Lager|Servicerapporte)\.json$/i.test(x));
+      showNet(konf.join(', ')+' wurde inzwischen auf einem anderen Gerät geändert. Die Tablet-Fassung wurde daneben als „(conflicted copy … Tablet)“ hochgeladen'+(auto?' und wird von den Werkzeugen automatisch zusammengeführt.':' – bitte prüfen, welche Fassung gilt.'),15000)}
+    else if(fehl.length)showNet('Hochladen nicht möglich: '+fehl.join(', ')+' – bleibt auf dem Tablet gespeichert und wird später nochmals versucht.',8000);
+    else if(n)showNet(n===1?'1 Datei hochgeladen':n+' Dateien hochgeladen',3000)}}
 setInterval(()=>{if(cfg)flushOutbox()},60000);
 window.addEventListener('online',()=>flushOutbox());
 
@@ -135,7 +166,8 @@ async function share(blob,name){const b=new Uint8Array(await blob.arrayBuffer())
 async function nav(ziel){const z=String(ziel||'').trim();if(!z)return;const web='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(z)+'&travelmode=driving';
   if(C.isWeb){window.open(web,'_blank');return}
   try{await plug('Update','oeffnen',{url:'google.navigation:q='+encodeURIComponent(z)+'&mode=d'})}catch(e){openUrl(web)}}
-async function openUrl(url){try{await plug('Browser','open',{url})}catch(e){window.open(url,'_blank')}}
+async function openUrl(url){url=String(url||'');if(!/^(https?|mailto|tel):/i.test(url))throw new Error('Adresse nicht erlaubt: '+url.slice(0,40)); /* kein javascript:, intent:, file: … */
+  try{await plug('Browser','open',{url})}catch(e){window.open(url,'_blank','noopener')}}
 
 /* ---------------- Ordner-/Speichern-Dialog ---------------- */
 function picker({mode='dir',start,suggestedName='',title}={}){return new Promise((res,rej)=>{
@@ -149,9 +181,12 @@ function picker({mode='dir',start,suggestedName='',title}={}){return new Promise
       it.forEach(e=>{const d=document.createElement('div');d.textContent=(e.dir?'📁 ':'📄 ')+e.name;if(!e.dir)d.className='f';d.onclick=()=>{if(e.dir){cur=e.path;show()}else if(mode==='save')N.value=e.name};L.append(d)})}
     catch(e){L.innerHTML='';const d=document.createElement('div');d.className='f';d.textContent='Fehler: '+(e.message||e);L.append(d)}}
   $('dlgUp').onclick=()=>{if(cur!=='/'){cur=parentOf(cur);show()}};
-  $('dlgNew').onclick=async()=>{const n=prompt('Name des neuen Ordners');if(!n)return;await mkdir(cur+'/'+n);cur=norm(cur+'/'+n);show()};
+  $('dlgNew').onclick=async()=>{const n=(prompt('Name des neuen Ordners')||'').trim();if(!n)return;
+    if(/[\\/:*?"<>|]/.test(n)||/^\.+$/.test(n)){alert('Dieser Name geht nicht. Bitte ohne \\ / : * ? " < > | und nicht nur Punkte.');return}
+    try{await mkdir(cur+'/'+n);cur=norm(cur+'/'+n);show()}catch(e){alert('Ordner konnte nicht erstellt werden: '+(e.message||e))}};
   $('dlgCancel').onclick=()=>{close();const e=new Error('Abgebrochen');e.name='AbortError';rej(e)};
-  $('dlgOk').onclick=()=>{if(mode==='save'){const n=N.value.trim();if(!n){N.focus();return}close();res(norm(cur+'/'+n))}else{close();res(cur)}};
+  $('dlgOk').onclick=()=>{if(mode==='save'){const n=N.value.trim();if(!n){N.focus();return}
+      if(/[\\/:*?"<>|]/.test(n)||/^\.+$/.test(n)){alert('Dieser Dateiname geht nicht. Bitte ohne \\ / : * ? " < > |.');N.focus();return}close();res(norm(cur+'/'+n))}else{close();res(cur)}};
   D.style.display='flex';show()})}
 
 /* ---------------- QR-Code vom Auftrag: Projekt öffnen ----------------
@@ -166,10 +201,13 @@ function zdLink(u){try{const url=new URL(String(u||''));const z=url.protocol==='
   if(!d.code&&!d.error)return false;plug('Browser','close',{}).catch(()=>{});if(zdHoerer){try{zdHoerer(d)}catch(e){zdWartend=d}}else zdWartend=d;return true}catch(e){return false}}
 function appLink(u){if(zdLink(u))return;openProjekt(linkParams(u))}
 /* Natives HTTP nur für Zendesk und den Zendesk-Worker (die App-Seite https://localhost wird dort per CORS abgewiesen) */
-async function http(url,o={}){const h=new URL(url).host;if(!(h==='segelmacherei.zendesk.com'||h==='segelmacherei-zendesk.yannicklona.workers.dev'))throw new Error('Adresse nicht erlaubt');
+async function http(url,o={}){const U=new URL(url),h=U.host;if(U.protocol!=='https:'||!(h==='segelmacherei.zendesk.com'||h==='segelmacherei-zendesk.yannicklona.workers.dev'))throw new Error('Adresse nicht erlaubt');
   return plug('Dav','request',{method:o.method||'GET',url,headers:o.headers||{},body:o.body==null?undefined:String(o.body),contentType:(o.headers&&o.headers['Content-Type'])||'application/json',responseType:'text'})}
 let pendingLink=linkParams(location.href);
 if(pendingLink&&C.isWeb)try{history.replaceState(null,'',location.pathname)}catch(e){}
+/* Web: neuer QR-Link im selben, schon offenen Tab (nur die Adresse nach # ändert sich) */
+if(C.isWeb)window.addEventListener('hashchange',()=>{const P=linkParams(location.href);if(!P)return;try{history.replaceState(null,'',location.pathname)}catch(e){}
+  if(cfg&&cfg.pass)openProjekt(P);else if($('start').style.display==='none'||!$('login').hidden){const k=$('kundeSeite');if(k)k.remove();showKunde(P)}});
 function openProjekt(P){if(!P)return;const f=$('app');if(!f.src||f.style.display==='none'){pendingLink=P;return}
   try{const w=f.contentWindow;if(w&&typeof w.kdDirekt==='function'){w.kdDirekt(P);return}}catch(e){}
   f.src=f.src.split('#')[0]+'#kunde?'+P.toString()}
@@ -277,7 +315,7 @@ function showKunde(P){const nr0=P&&P.get('nr')||'',nr=/^20\d{6}$/.test(nr0)?'':n
     #kundeSeite h2{font-size:16px;margin:22px 0 6px}#kundeSeite ul{margin:0;padding-left:20px;color:#4a5363;font-size:15px;line-height:1.55}
     #kundeSeite .kf{color:#aab3c5;font-size:13.5px;text-align:center;margin-top:18px;line-height:1.6}#kundeSeite .kf a{color:#cfd6e4}
     #kundeSeite button{font:inherit;font-size:13px;background:none;border:0;color:#7f8aa0;margin-top:14px;cursor:pointer;text-decoration:underline}</style>
-   <div class="k"><div class="kh"><img src="${FIRMA.logo}" alt="${e(FIRMA.name)}" onerror="this.outerHTML='<b style=&quot;color:#fff;font-size:20px&quot;>${e(FIRMA.name)}</b>'"></div>
+   <div class="k"><div class="kh"><img src="${FIRMA.logo}" alt="${e(FIRMA.name)}"></div>
     <div class="kc"><h1>Ihr Sonnensegel von der Segelmacherei</h1>${nr?`<span class="nr">Auftrag ${e(nr)}</span>`:''}
      <p>Danke, dass Sie sich für ein Segel aus unserer Werkstatt entschieden haben. Bei Fragen, Service oder Ersatzteilen sind wir gerne für Sie da${nr?' – die Auftragsnummer hilft uns, Ihr Segel sofort zu finden':''}.</p>
      <a class="kb pri" href="mailto:${FIRMA.mail}?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(body)}">✉<span>Service oder Ersatzteil anfragen<small>E-Mail an ${e(FIRMA.mail)}${nr?' mit Ihrer Auftragsnummer':''}</small></span></a>
@@ -285,7 +323,8 @@ function showKunde(P){const nr0=P&&P.get('nr')||'',nr=/^20\d{6}$/.test(nr0)?'':n
      <a class="kb" href="${FIRMA.web}" target="_blank" rel="noopener">🌐<span>Zur Webseite<small>www.segelmacherei.ch</small></span></a>
      <h2>Pflege-Tipps</h2><ul><li>Bei Sturm, starkem Wind oder Schnee das Segel einrollen bzw. abnehmen.</li><li>Über den Winter trocken und sauber eingelagert aufbewahren.</li><li>Reinigen mit Wasser und milder Seife – keinen Hochdruckreiniger.</li><li>Spanner und Befestigungen ab und zu kontrollieren.</li></ul></div>
     <div class="kf"><b>${e(FIRMA.name)}</b><br>${e(FIRMA.strasse)} · ${e(FIRMA.ort)}<br><a href="${FIRMA.web}" target="_blank" rel="noopener">www.segelmacherei.ch</a><br><button type="button" id="kMa">Mitarbeiter-Anmeldung</button></div></div>`;
-  document.body.append(d);$('kMa').onclick=()=>{d.remove();$('start').style.display='';document.title='Segelmacherei Werkzeuge';showLogin()}}
+  document.body.append(d);const lg=d.querySelector('.kh img');lg.addEventListener('error',()=>{const b=document.createElement('b');b.style.cssText='color:#fff;font-size:20px';b.textContent=FIRMA.name;lg.replaceWith(b)});
+  $('kMa').onclick=()=>{d.remove();$('start').style.display='';document.title='Segelmacherei Werkzeuge';showLogin()}}
 /* ---------------- Anmeldung (Nextcloud Login Flow v2) ---------------- */
 function showLogin(){$('login').hidden=false;$('startBtns').hidden=true;if(C.isWeb){$('webLogin').hidden=false;$('bLogin').textContent='Anmelden'}if(!$('msg').classList.contains('bad'))msg(C.isWeb?'Einmalig anmelden mit einem App-Passwort aus Nextcloud (Einstellungen → Sicherheit → „Neues App-Passwort erstellen“). Es kann dort jederzeit gesperrt werden.':'Einmalig mit dem Nextcloud-Konto anmelden. Das Passwort wird nicht in der App gespeichert – Nextcloud gibt der App ein eigenes App-Passwort, das man in Nextcloud jederzeit sperren kann.')}
 async function login(){if(C.isWeb)return loginWeb();
@@ -303,7 +342,10 @@ async function login(){if(C.isWeb)return loginWeb();
         plug('Browser','close',{}).catch(()=>{});msg('Angemeldet als '+cfg.user);await prefSet('toolsManifest',{});return start()}}
     throw new Error('Zeit abgelaufen – bitte nochmals versuchen.')}
   catch(e){msg(e.message||String(e),true)}finally{$('bLogin').disabled=false}}
-async function logout(){if(!confirm('Abmelden? Nicht hochgeladene Änderungen bleiben auf dem Tablet gespeichert.'))return;const c=await prefGet('nc');if(c){c.pass='';await prefSet('nc',c)}location.reload()}
+async function logout(){if(!confirm(C.isWeb?'Abmelden? Nicht hochgeladene Änderungen bleiben in diesem Browser gespeichert. Gespeicherte Anmeldungen der Werkzeuge (z.B. Exxas) werden gelöscht.':'Abmelden? Nicht hochgeladene Änderungen bleiben auf dem Tablet gespeichert.'))return;const c=await prefGet('nc');if(c){c.pass='';await prefSet('nc',c)}
+  /* Im Browser (evtl. fremder/gemeinsamer PC): auch die Geheimnisse der Werkzeuge löschen */
+  if(C.isWeb)try{const k=await plug('Preferences','keys');for(const x of (k&&k.keys)||[])if(/^geheim:/.test(x))await plug('Preferences','remove',{key:x})}catch(e){}
+  location.reload()}
 
 $('bLogin').onclick=login;$('bAdv').onclick=()=>{$('adv').hidden=!$('adv').hidden};
 $('bRetry').onclick=start;$('bLogout').onclick=logout;$('bOffline').onclick=openTools;

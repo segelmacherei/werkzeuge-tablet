@@ -32,7 +32,8 @@ window.Capacitor={isWeb:true,
     Preferences:{
       async get({key}){let v=null;try{v=localStorage.getItem('seg:'+key)}catch(e){}return {value:v}},
       async set({key,value}){try{localStorage.setItem('seg:'+key,value)}catch(e){}},
-      async remove({key}){try{localStorage.removeItem('seg:'+key)}catch(e){}}},
+      async remove({key}){try{localStorage.removeItem('seg:'+key)}catch(e){}},
+      async keys(){const k=[];try{for(let i=0;i<localStorage.length;i++){const x=localStorage.key(i);if(x&&x.startsWith('seg:'))k.push(x.slice(4))}}catch(e){}return {keys:k}}},
     Filesystem:{
       async writeFile({path,data,directory,encoding}){
         if(directory==='DATA'&&/^w\//.test(path)){const c=await caches.open(TOOLS);const body=encoding?data:b2u(data);
