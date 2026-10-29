@@ -50,7 +50,7 @@ try{const h=location.hash.replace(/^#/,'');let m=h.match(/(?:^|&)m=([^&]+)/);
     const SL=(K[7]||'').split('|').map(dec).filter(Boolean);
     D={p:dec(K[1]),f:dec(K[2]),t:dec(K[3]),m:dec(K[4]),d:K[5]||'',a:+K[6]||0,s:[],h:[]};
     T.slice(1).forEach(x=>{if(x[0]==='H'){D.h=x.slice(1).split('_').map(o=>{const n=o.split('.').map(Number);const p=[];for(let i=1;i+1<n.length;i+=2)p.push([n[i],n[i+1]]);return {z:n[0],p}});return}
-      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'']})})})}
+      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],w:+f[9]>0?+f[9]/1000:1.42,e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'']})})})}
   else{m=h.match(/(?:^|&)d=([^&]+)/);if(!m)throw 0;
   let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
   D=JSON.parse(new TextDecoder().decode(u))}}catch(e){D=null}
@@ -61,7 +61,7 @@ let cur=Math.min(Math.max(0,+D.a||0),D.s.length-1);
 const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,gz:(q[3]||0)/100,w:q[4]===1,sp:q[5]||''}))}));
 const H=(D.h||[]).map(o=>({pts:o.p.map(q=>({x:q[0]/100,y:q[1]/100})),h:o.z/100}));
 $('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`<button type="button" data-i="${i}"><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||('Segel '+(i+1)))}</button>`).join('')}</div>`:''}
- <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button></div>
+ <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button><button type="button" id="bN" aria-pressed="true">Nähte ✓</button></div>
  <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
  <div class="card" id="info"></div>
  <div class="card"><h2>So montieren</h2><ol id="steps"></ol></div>
@@ -89,12 +89,24 @@ let fitS=1,fitX=0,fitY=0;
 function allPts(){const A=[];S.forEach(s=>s.P.forEach(p=>{A.push([p.x,p.y,p.h],[p.x,p.y,p.gz])}));H.forEach(o=>o.pts.forEach(q=>{A.push([q.x,q.y,0],[q.x,q.y,o.h])}));return A}
 function fit(){const r=cv.getBoundingClientRect(),W=r.width,Hh=r.height;const Q=allPts().map(a=>P3(a[0],a[1],a[2]));if(!Q.length)return;
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
-  fitS=Math.min((W-60)/Math.max(.5,x1-x0),(Hh-60)/Math.max(.5,y1-y0));fitX=W/2-(x0+x1)/2*fitS;fitY=Hh/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
+  fitS=Math.min((W-150)/Math.max(.5,x1-x0),(Hh-70)/Math.max(.5,y1-y0));fitX=W/2-(x0+x1)/2*fitS-30;fitY=Hh/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
 function scr(x,y,z){const q=P3(x,y,z),s=fitS*zoom,r=cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY,d:q.depth}}
 function curve(s){/* Segelrand mit Bogen nach innen (Dip %) */const n=s.P.length,c={x:0,y:0,z:0};s.P.forEach(p=>{c.x+=p.x/n;c.y+=p.y/n;c.z+=p.h/n});const bow=(+s.b||8)/100,out=[];
   for(let i=0;i<n;i++){const a=s.P[i],b=s.P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y,b.h-a.h),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.h+b.h)/2};
     const dx=c.x-m.x,dy=c.y-m.y,dz=c.z-m.z,dl=Math.hypot(dx,dy,dz)||1,k=L*bow*2;const ctl={x:m.x+dx/dl*k,y:m.y+dy/dl*k,z:m.z+dz/dl*k};
     for(let t=0;t<16;t++){const u=t/16,a1=(1-u)*(1-u),b1=2*u*(1-u),c1=u*u;out.push({x:a1*a.x+b1*ctl.x+c1*b.x,y:a1*a.y+b1*ctl.y+c1*b.y,z:a1*a.h+b1*ctl.z+c1*b.h})}}return out}
+/* Nähte wie im Planer: von der Mittelachse aus alle Bahnbreiten (Standard 1420 mm) – Achse: Rollsegel Mittelkante, sonst längste Diagonale, Dreieck Ecke → Mitte längste Kante */
+let zeigN=true;
+function naehte(s,C){const P=s.P.map(p=>({x:p.x,y:p.y,z:p.h})),n=P.length;if(n<3)return [];const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,L=a=>Math.hypot(a.x,a.y,a.z),mul=(a,k)=>({x:a.x*k,y:a.y*k,z:a.z*k}),cr=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
+  let A,B;if(s.ty==='r'&&s.vr>=0&&s.kg>=0&&P[s.vr]&&P[s.kg]){A=P[s.vr];B=P[s.kg]}
+  else if(n>=4){let bst=null;for(let i=0;i<n;i++)for(let j=i+2;j<n;j++){if(i===0&&j===n-1)continue;const d=L(sub(P[i],P[j]));if(!bst||d>bst.d)bst={i,j,d}}A=P[bst.i];B=P[bst.j]}
+  else{let bi=0,bl=-1;for(let i=0;i<3;i++){const l=L(sub(P[i],P[(i+1)%3]));if(l>bl){bl=l;bi=i}}A=P[(bi+2)%3];B=mul({x:P[bi].x+P[(bi+1)%3].x,y:P[bi].y+P[(bi+1)%3].y,z:P[bi].z+P[(bi+1)%3].z},.5)}
+  let N={x:0,y:0,z:0};for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n];N.x+=(a.y-b.y)*(a.z+b.z);N.y+=(a.z-b.z)*(a.x+b.x);N.z+=(a.x-b.x)*(a.y+b.y)}N=mul(N,1/(L(N)||1));
+  let d=sub(B,A);d=sub(d,mul(N,dot(d,N)));d=mul(d,1/(L(d)||1));const e=cr(N,d),W=s.w||1.42;
+  const v=C.map(p=>dot(sub(p,A),e)),mn=Math.min(...v),mx=Math.max(...v),out=[];
+  for(let k=Math.ceil(mn/W);k<=Math.floor(mx/W);k++){const lv=k*W,X=[];for(let i=0;i<C.length;i++){const j=(i+1)%C.length,va=v[i],vb=v[j];if((va<lv&&vb>=lv)||(va>=lv&&vb<lv)){const t=(lv-va)/(vb-va);X.push({x:C[i].x+(C[j].x-C[i].x)*t,y:C[i].y+(C[j].y-C[i].y)*t,z:C[i].z+(C[j].z-C[i].z)*t})}}
+    X.sort((a,b)=>dot(sub(a,A),d)-dot(sub(b,A),d));for(let i=0;i+1<X.length;i+=2)out.push({k,a:X[i],b:X[i+1]})}
+  return out}
 function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);
   /* Boden-Raster 1 m */const A=allPts();let gx0=1e9,gx1=-1e9,gy0=1e9,gy1=-1e9;A.forEach(a=>{gx0=Math.min(gx0,a[0]);gx1=Math.max(gx1,a[0]);gy0=Math.min(gy0,a[1]);gy1=Math.max(gy1,a[1])});
   gx0=Math.floor(gx0)-2;gx1=Math.ceil(gx1)+2;gy0=Math.floor(gy0)-2;gy1=Math.ceil(gy1)+2;ctx.strokeStyle='rgba(20,30,50,.08)';ctx.lineWidth=1;ctx.beginPath();
@@ -107,6 +119,7 @@ function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect(
     ctx.beginPath();C.forEach((p,k)=>{const q=scr(p.x,p.y,p.z);k?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();const col=s.c||'#e8913a';
     ctx.globalAlpha=on?.55:.18;ctx.fillStyle=col;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=on?2.5:1;ctx.stroke();
     if(!on)return;
+    if(zeigN){naehte(s,C).forEach(sg=>{const a=scr(sg.a.x,sg.a.y,sg.a.z),b=scr(sg.b.x,sg.b.y,sg.b.z);ctx.strokeStyle=sg.k===0?'rgba(20,24,31,.85)':'rgba(20,24,31,.45)';ctx.lineWidth=sg.k===0?2:1.2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()})}
     if(s.ty==='r'&&s.vr>=0&&s.kg>=0){const a=s.P[s.vr],b=s.P[s.kg],p=scr(a.x,a.y,a.h),q=scr(b.x,b.y,b.h);ctx.setLineDash([6,4]);ctx.strokeStyle='#14181f';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([])}
     s.P.forEach((p,k)=>{const q=scr(p.x,p.y,p.h);if(k===0){ctx.beginPath();ctx.arc(q.x,q.y,11,0,7);ctx.strokeStyle='#d0281e';ctx.lineWidth=3;ctx.stroke()}
       ctx.beginPath();ctx.arc(q.x,q.y,5,0,7);ctx.fillStyle=p.w?'#555':col;ctx.fill();ctx.strokeStyle='#111';ctx.lineWidth=1.2;ctx.stroke();
@@ -116,10 +129,11 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.po
 cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);
   if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;draw();return}
   if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};
-  if(e.shiftKey||e.button===2){panX+=dx;panY+=dy}else{yaw+=dx*0.01;pitch=Math.max(0.05,Math.min(1.5,pitch+dy*0.008))}draw()});
+  if(e.shiftKey||e.button===2){panX+=dx;panY+=dy}else{yaw+=dx*0.01;pitch=Math.max(0,Math.min(1.5,pitch+dy*0.008))}draw()});
 const up=e=>{delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));draw()},{passive:false});
-document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=1.5}else if(v==='iso'){yaw=-0.6;pitch=0.75}fit();draw()});
+document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=0}else if(v==='iso'){yaw=-0.6;pitch=0.75}fit();draw()});
+$('#bN').onclick=()=>{zeigN=!zeigN;$('#bN').textContent=zeigN?'Nähte ✓':'Nähte';$('#bN').setAttribute('aria-pressed',zeigN);draw()};
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;info();draw()});
 $('#ft').innerHTML=[D.f?esc(D.f):'',D.t?`<a href="tel:${esc(String(D.t).replace(/[^\d+]/g,''))}">${esc(D.t)}</a>`:'',D.m?`<a href="mailto:${esc(D.m)}">${esc(D.m)}</a>`:''].filter(Boolean).join(' · ')+(D.d?`<br>Stand ${esc(D.d)}`:'');
 addEventListener('resize',()=>{fit();draw()});
