@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Montage Sonnensegel</title>
+<style>
+:root{--ink:#14181f;--mut:#5b6472;--line:#dde1e7;--bg:#f4f6f9;--card:#fff;--a:#d0281e;--acc:#0b6b4b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:#14181f;color:#fff;padding:14px 16px calc(14px) 16px}
+header .f{font-size:13px;opacity:.8}
+header h1{font-size:20px;margin:2px 0 0;font-weight:700}
+main{max-width:860px;margin:0 auto;padding:12px 12px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.tabs button{font:inherit;font-size:15px;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#cv{width:100%;height:56vh;max-height:520px;min-height:300px;display:block;border-radius:10px;background:#eef2f6;touch-action:none}
+.vb{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.vb button{font:inherit;font-size:14px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.hint{font-size:13px;color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:14.5px}td.sp{font-size:13px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12.5px;color:var(--mut);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ea{color:var(--a);font-weight:700}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:2.5px solid var(--a);vertical-align:-1px;margin-right:4px}
+ol{margin:6px 0 0;padding-left:22px}ol li{margin:6px 0}
+h2{font-size:17px;margin:0 0 8px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.err{padding:30px 16px;text-align:center;color:var(--mut)}
+footer{font-size:13px;color:var(--mut);text-align:center;margin-top:16px}
+footer a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header><div class="f" id="firm">Montage Sonnensegel</div><h1 id="titel">Montage</h1></header>
+<main id="main"><div class="err">Lade …</div></main>
+<script>
+/* Montage-Ansicht für Monteure / Spielplatzbauer.
+   Alle Angaben stehen im QR-Code selbst (im #-Teil der Adresse) – sie werden nicht an einen Server geschickt und nirgends gespeichert. */
+(function(){
+const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LET='ABCDEFGHIJKLMNOP',mm=v=>Math.round(v*1000).toLocaleString('de-CH');
+let D=null;
+try{const h=location.hash.replace(/^#/,'');let m=h.match(/(?:^|&)m=([^&]+)/);
+  if(m){/* Format 2: Kopf!Segel!Segel!H… */const T=m[1].split('!'),dec=s=>{try{return decodeURIComponent(s||'')}catch(e){return s||''}},K=T[0].split('~');
+    const SL=(K[7]||'').split('|').map(dec).filter(Boolean);
+    D={p:dec(K[1]),f:dec(K[2]),t:dec(K[3]),m:dec(K[4]),d:K[5]||'',a:+K[6]||0,s:[],h:[]};
+    T.slice(1).forEach(x=>{if(x[0]==='H'){D.h=x.slice(1).split('_').map(o=>{const n=o.split('.').map(Number);const p=[];for(let i=1;i+1<n.length;i+=2)p.push([n[i],n[i+1]]);return {z:n[0],p}});return}
+      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'']})})})}
+  else{m=h.match(/(?:^|&)d=([^&]+)/);if(!m)throw 0;
+  let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  D=JSON.parse(new TextDecoder().decode(u))}}catch(e){D=null}
+if(!D||!Array.isArray(D.s)||!D.s.length){$('#main').innerHTML='<div class="err">Dieser Link enthält keine Montagedaten.<br>Bitte den QR-Code auf der Segel-Etikette nochmals scannen.</div>';return}
+$('#firm').textContent=D.f||'Montage Sonnensegel';$('#titel').textContent=D.p||'Montage';document.title='Montage – '+(D.p||'Sonnensegel');
+let cur=Math.min(Math.max(0,+D.a||0),D.s.length-1);
+/* Daten: Punkte [x,y,h,gz,typ(0 Stütze / 1 Wand),Spanner] in cm */
+const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,gz:(q[3]||0)/100,w:q[4]===1,sp:q[5]||''}))}));
+const H=(D.h||[]).map(o=>({pts:o.p.map(q=>({x:q[0]/100,y:q[1]/100})),h:o.z/100}));
+$('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`<button type="button" data-i="${i}"><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||('Segel '+(i+1)))}</button>`).join('')}</div>`:''}
+ <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button></div>
+ <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
+ <div class="card" id="info"></div>
+ <div class="card"><h2>So montieren</h2><ol id="steps"></ol></div>
+ <footer id="ft"></footer>`;
+const cv=$('#cv'),ctx=cv.getContext('2d');
+let yaw=-0.6,pitch=0.75,zoom=1,panX=0,panY=0;
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y,a.h-b.h)}
+function info(){const s=S[cur],n=s.P.length,vr=s.vr>=0?s.vr:-1,kg=s.kg>=0?s.kg:-1;
+  const rows=s.P.map((p,i)=>`<tr><td class="${i===0?'ea':''}">${i===0?'<span class="dot"></span>':''}${LET[i]}</td><td>${p.w?'Wand':'Stütze'}</td><td class="n">${mm(p.h-p.gz)}</td><td class="sp">${esc(p.sp||'–')}</td><td>${i===vr?'<b>Vorroller</b>':i===kg?'Kugellager':''}${i===0?(i===vr||i===kg?' · ':'')+'<span class="ea">rot markiert</span>':''}</td></tr>`).join('');
+  const kan=s.P.map((p,i)=>`${LET[i]}–${LET[(i+1)%n]} <b>${mm(dist(p,s.P[(i+1)%n]))}</b>`).join(' · ');
+  $('#info').innerHTML=`<h2><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||'Segel')}</h2>
+   <div class="hint" style="margin:-4px 0 8px">${esc([s.tu,s.tf,s.ty==='r'?'Rollsegel':'Saisonsegel'].filter(Boolean).join(' · '))}</div>
+   <table><tr><th>Ecke</th><th>Befestigung</th><th style="text-align:right">Höhe [mm]</th><th>Spanner</th><th></th></tr>${rows}</table>
+   <div class="hint" style="margin-top:8px">Abstand der Befestigungspunkte [mm]: ${kan}</div>`;
+  const st=[`Befestigungspunkte prüfen: Höhen und Abstände wie oben (± 2 cm). Weicht etwas mehr ab, bitte zuerst anrufen.`,
+    `Segel auslegen: die <span class="ea">rot markierte Ecke</span> ist <b>Ecke A</b> und gehört an Punkt A. Danach der Reihe nach ${s.P.map((_,i)=>LET[i]).join(' → ')}.`,
+    `Spanner ganz öffnen und alle Ecken einhängen, noch nicht spannen.`,
+    `Gleichmässig über Kreuz spannen, bis das Segel straff und faltenfrei ist. Spanner sichern (Kontermutter / Sicherung).`];
+  if(s.ty==='r'&&vr>=0)st.splice(2,0,`Rollsegel: Vorroller an Ecke <b>${LET[vr]}</b>${kg>=0?', Kugellager an Ecke <b>'+LET[kg]+'</b>':''}. Die Mittelkante ${LET[vr]}–${kg>=0?LET[kg]:'…'} braucht am meisten Zug; die beiden anderen Ecken werden zum Aufrollen gelöst.`);
+  $('#steps').innerHTML=st.map(t=>`<li>${t}</li>`).join('');
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',+b.dataset.i===cur))}
+/* einfache Orthogonal-Projektion: Drehung um z (yaw), Neigung (pitch) */
+function P3(x,y,z){const cy=Math.cos(yaw),sy=Math.sin(yaw);const u=x*cy-y*sy,v=x*sy+y*cy;const cp=Math.cos(pitch),sp=Math.sin(pitch);return {u,w:-(v*cp)-z*sp+0,depth:v*sp-z*cp}}
+let fitS=1,fitX=0,fitY=0;
+function allPts(){const A=[];S.forEach(s=>s.P.forEach(p=>{A.push([p.x,p.y,p.h],[p.x,p.y,p.gz])}));H.forEach(o=>o.pts.forEach(q=>{A.push([q.x,q.y,0],[q.x,q.y,o.h])}));return A}
+function fit(){const r=cv.getBoundingClientRect(),W=r.width,Hh=r.height;const Q=allPts().map(a=>P3(a[0],a[1],a[2]));if(!Q.length)return;
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
+  fitS=Math.min((W-60)/Math.max(.5,x1-x0),(Hh-60)/Math.max(.5,y1-y0));fitX=W/2-(x0+x1)/2*fitS;fitY=Hh/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
+function scr(x,y,z){const q=P3(x,y,z),s=fitS*zoom,r=cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY,d:q.depth}}
+function curve(s){/* Segelrand mit Bogen nach innen (Dip %) */const n=s.P.length,c={x:0,y:0,z:0};s.P.forEach(p=>{c.x+=p.x/n;c.y+=p.y/n;c.z+=p.h/n});const bow=(+s.b||8)/100,out=[];
+  for(let i=0;i<n;i++){const a=s.P[i],b=s.P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y,b.h-a.h),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.h+b.h)/2};
+    const dx=c.x-m.x,dy=c.y-m.y,dz=c.z-m.z,dl=Math.hypot(dx,dy,dz)||1,k=L*bow*2;const ctl={x:m.x+dx/dl*k,y:m.y+dy/dl*k,z:m.z+dz/dl*k};
+    for(let t=0;t<16;t++){const u=t/16,a1=(1-u)*(1-u),b1=2*u*(1-u),c1=u*u;out.push({x:a1*a.x+b1*ctl.x+c1*b.x,y:a1*a.y+b1*ctl.y+c1*b.y,z:a1*a.h+b1*ctl.z+c1*b.h})}}return out}
+function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);
+  /* Boden-Raster 1 m */const A=allPts();let gx0=1e9,gx1=-1e9,gy0=1e9,gy1=-1e9;A.forEach(a=>{gx0=Math.min(gx0,a[0]);gx1=Math.max(gx1,a[0]);gy0=Math.min(gy0,a[1]);gy1=Math.max(gy1,a[1])});
+  gx0=Math.floor(gx0)-2;gx1=Math.ceil(gx1)+2;gy0=Math.floor(gy0)-2;gy1=Math.ceil(gy1)+2;ctx.strokeStyle='rgba(20,30,50,.08)';ctx.lineWidth=1;ctx.beginPath();
+  for(let x=gx0;x<=gx1;x++){const a=scr(x,gy0,0),b=scr(x,gy1,0);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}for(let y=gy0;y<=gy1;y++){const a=scr(gx0,y,0),b=scr(gx1,y,0);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}ctx.stroke();
+  /* Nordpfeil */{const a=scr(gx0+0.7,gy1-0.7,0),b=scr(gx0+0.7,gy1+0.3,0);ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.fillStyle='#333';ctx.font='bold 13px system-ui';ctx.fillText('N',b.x+4,b.y)}
+  /* Gebäude */H.forEach(o=>{const n=o.pts.length;const F=[];for(let i=0;i<n;i++){const a=o.pts[i],b=o.pts[(i+1)%n];F.push([[a.x,a.y,0],[b.x,b.y,0],[b.x,b.y,o.h],[a.x,a.y,o.h]])}F.push(o.pts.map(q=>[q.x,q.y,o.h]));
+    F.map(f=>({f,d:f.reduce((s,p)=>s+scr(p[0],p[1],p[2]).d,0)/f.length})).sort((a,b)=>b.d-a.d).forEach(({f})=>{ctx.beginPath();f.forEach((p,i)=>{const q=scr(p[0],p[1],p[2]);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();ctx.fillStyle='rgba(222,210,196,.75)';ctx.fill();ctx.strokeStyle='#8a7a6a';ctx.lineWidth=1;ctx.stroke()})});
+  /* Segel: andere blass, gewähltes kräftig */S.map((s,i)=>i).sort((a,b)=>(a===cur)-(b===cur)).forEach(i=>{const s=S[i],on=i===cur,C=curve(s);
+    s.P.forEach(p=>{if(p.w)return;const a=scr(p.x,p.y,p.gz),b=scr(p.x,p.y,p.h);ctx.strokeStyle=on?'#555':'rgba(80,80,80,.35)';ctx.lineWidth=on?4:2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()});
+    ctx.beginPath();C.forEach((p,k)=>{const q=scr(p.x,p.y,p.z);k?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();const col=s.c||'#e8913a';
+    ctx.globalAlpha=on?.55:.18;ctx.fillStyle=col;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=on?2.5:1;ctx.stroke();
+    if(!on)return;
+    if(s.ty==='r'&&s.vr>=0&&s.kg>=0){const a=s.P[s.vr],b=s.P[s.kg],p=scr(a.x,a.y,a.h),q=scr(b.x,b.y,b.h);ctx.setLineDash([6,4]);ctx.strokeStyle='#14181f';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([])}
+    s.P.forEach((p,k)=>{const q=scr(p.x,p.y,p.h);if(k===0){ctx.beginPath();ctx.arc(q.x,q.y,11,0,7);ctx.strokeStyle='#d0281e';ctx.lineWidth=3;ctx.stroke()}
+      ctx.beginPath();ctx.arc(q.x,q.y,5,0,7);ctx.fillStyle=p.w?'#555':col;ctx.fill();ctx.strokeStyle='#111';ctx.lineWidth=1.2;ctx.stroke();
+      const t=LET[k]+'  '+mm(p.h-p.gz)+(k===s.vr?'  Vorroller':'');ctx.font='bold 14px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(t,q.x+12,q.y-10);ctx.fillStyle=k===0?'#d0281e':'#111';ctx.fillText(t,q.x+12,q.y-10)})})}
+let ptr={},last=null,pinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.pointerId]={x:e.clientX,y:e.clientY};last={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2)pinch=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y)});
+cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);
+  if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;draw();return}
+  if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};
+  if(e.shiftKey||e.button===2){panX+=dx;panY+=dy}else{yaw+=dx*0.01;pitch=Math.max(0.05,Math.min(1.5,pitch+dy*0.008))}draw()});
+const up=e=>{delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));draw()},{passive:false});
+document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=1.5}else if(v==='iso'){yaw=-0.6;pitch=0.75}fit();draw()});
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;info();draw()});
+$('#ft').innerHTML=[D.f?esc(D.f):'',D.t?`<a href="tel:${esc(String(D.t).replace(/[^\d+]/g,''))}">${esc(D.t)}</a>`:'',D.m?`<a href="mailto:${esc(D.m)}">${esc(D.m)}</a>`:''].filter(Boolean).join(' · ')+(D.d?`<br>Stand ${esc(D.d)}`:'');
+addEventListener('resize',()=>{fit();draw()});
+info();fit();draw();
+})();
+</script>
+</body>
+</html>
