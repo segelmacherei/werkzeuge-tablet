@@ -16,6 +16,13 @@ const TOOL_HOST='Werkzeuge.html';
 let cfg=null; // {server,user,pass,root}
 async function prefGet(k){try{const r=await plug('Preferences','get',{key:k});return r&&r.value!=null?JSON.parse(r.value):null}catch(e){return null}}
 async function prefSet(k,v){try{await plug('Preferences','set',{key:k,value:JSON.stringify(v)})}catch(e){}}
+/* Zugangsdaten (App-Passwort, Anmeldungen der Werkzeuge) im verschlüsselten Tresor der App (Android-Keystore); ältere Klartext-Einträge werden beim ersten Lesen dorthin verschoben. Ohne Tresor (Browser, alte App): wie bisher. */
+let tresorOk=null;
+async function tresorBereit(){if(C.isWeb)return false;if(tresorOk!=null)return tresorOk;try{const r=await plug('Tresor','info');tresorOk=!!(r&&r.ok)}catch(e){tresorOk=false}return tresorOk}
+async function sGet(k){if(await tresorBereit()){try{const r=await plug('Tresor','get',{key:k});if(r&&r.value!=null)return JSON.parse(r.value)}catch(e){}
+    const alt=await prefGet(k);if(alt!=null){try{await plug('Tresor','set',{key:k,value:JSON.stringify(alt)});const t=await plug('Tresor','get',{key:k});if(t&&t.value!=null)await plug('Preferences','remove',{key:k})}catch(e){}}return alt}
+  return prefGet(k)}
+async function sSet(k,v){if(await tresorBereit()){try{if(v==null)await plug('Tresor','remove',{key:k});else await plug('Tresor','set',{key:k,value:JSON.stringify(v)});try{await plug('Preferences','remove',{key:k})}catch(e){}return}catch(e){}}await prefSet(k,v)}
 
 /* ---------------- Hilfen ---------------- */
 const b64utf8=s=>btoa(unescape(encodeURIComponent(s)));
@@ -282,7 +289,7 @@ function updateHinweis(neu,me,pfad){let u=$('updBar');if(u)u.remove();u=document
     catch(e){t.textContent='Update fehlgeschlagen: '+(e.message||e);g.disabled=false}}}
 async function start(){
   $('startBtns').hidden=true;$('login').hidden=true;
-  cfg=await prefGet('nc');
+  cfg=await sGet('nc');
   if(!cfg||!cfg.pass){if(C.isWeb&&pendingLink){showKunde(pendingLink);return}showLogin();return}
   window.__seg.root=cfg.root;
   msg('Werkzeuge werden aktualisiert …');
@@ -300,7 +307,7 @@ async function loginWeb(){let srv=$('srv').value.trim().replace(/\/+$/,'');if(!/
   cfg={server:srv,user,pass,root};msg('Prüfe Zugang …');$('bLogin').disabled=true;
   try{const r=await davRaw('PROPFIND','/',{slash:true,body:PROPS,contentType:'application/xml; charset=utf-8',headers:{Depth:'0'}});
     if(r.status!==207)throw new Error('Nextcloud antwortet mit '+r.status);
-    await prefSet('nc',cfg);await prefSet('toolsManifest',{});msg('Angemeldet als '+user);return start()}
+    await sSet('nc',cfg);await prefSet('toolsManifest',{});msg('Angemeldet als '+user);return start()}
   catch(e){cfg=null;msg(e instanceof AuthErr?'Benutzername oder App-Passwort falsch.':e instanceof NetErr?'Keine Verbindung zu Nextcloud.\n\nWenn Internet da ist: In Nextcloud unter Verwaltung → WebAppPassword muss diese Adresse erlaubt sein: '+location.origin:(e.message||String(e)),true)}
   finally{$('bLogin').disabled=false}}
 /* ---------------- Kundenseite: QR-Code vom Etikett, gescannt von einem Kunden (nicht angemeldet) ---------------- */
@@ -343,11 +350,11 @@ async function login(){if(C.isWeb)return loginWeb();
     const t0=Date.now();
     while(Date.now()-t0<10*60000){await new Promise(z=>setTimeout(z,2000));
       const p=await plug('Dav','request',{method:'POST',url:j.poll.endpoint,body:'token='+encodeURIComponent(j.poll.token),contentType:'application/x-www-form-urlencoded',responseType:'text'}).catch(()=>null);
-      if(p&&p.status===200){const a=JSON.parse(p.data);cfg={server:(a.server||srv).replace(/\/+$/,''),user:a.loginName,pass:a.appPassword,root};await prefSet('nc',cfg);
+      if(p&&p.status===200){const a=JSON.parse(p.data);cfg={server:(a.server||srv).replace(/\/+$/,''),user:a.loginName,pass:a.appPassword,root};await sSet('nc',cfg);
         plug('Browser','close',{}).catch(()=>{});msg('Angemeldet als '+cfg.user);await prefSet('toolsManifest',{});return start()}}
     throw new Error('Zeit abgelaufen – bitte nochmals versuchen.')}
   catch(e){msg(e.message||String(e),true)}finally{$('bLogin').disabled=false}}
-async function logout(){if(!confirm(C.isWeb?'Abmelden? Nicht hochgeladene Änderungen bleiben in diesem Browser gespeichert. Gespeicherte Anmeldungen der Werkzeuge (z.B. Exxas) werden gelöscht.':'Abmelden? Nicht hochgeladene Änderungen bleiben auf dem Tablet gespeichert.'))return;const c=await prefGet('nc');if(c){c.pass='';await prefSet('nc',c)}
+async function logout(){if(!confirm(C.isWeb?'Abmelden? Nicht hochgeladene Änderungen bleiben in diesem Browser gespeichert. Gespeicherte Anmeldungen der Werkzeuge (z.B. Exxas) werden gelöscht.':'Abmelden? Nicht hochgeladene Änderungen bleiben auf dem Tablet gespeichert.'))return;const c=await sGet('nc');if(c){c.pass='';await sSet('nc',c)}
   /* Im Browser (evtl. fremder/gemeinsamer PC): auch die Geheimnisse der Werkzeuge löschen */
   if(C.isWeb)try{const k=await plug('Preferences','keys');for(const x of (k&&k.keys)||[])if(/^geheim:/.test(x))await plug('Preferences','remove',{key:x})}catch(e){}
   location.reload()}
@@ -363,7 +370,7 @@ try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backBut
 /* Schnittstelle für die Werkzeuge (shim.js) */
 window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,nav,showNet,flush:flushOutbox,scan,
   /* Für die Werkzeuge: z.B. Exxas-Anmeldung des API-Benutzers, damit sie sich nach 24 h selbst erneuert (nur in der App gespeichert, wie das Nextcloud-App-Passwort) */
-  secret:{get:async k=>{const v=await prefGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await prefSet('geheim:'+k,String(v));return true},del:async k=>{try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){await prefSet('geheim:'+k,null)}return true}},
+  secret:{get:async k=>{const v=await sGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await sSet('geheim:'+k,String(v));return true},del:async k=>{await sSet('geheim:'+k,null);try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){}return true}},
   onZendesk:f=>{zdHoerer=f;if(zdWartend){const d=zdWartend;zdWartend=null;setTimeout(()=>f(d),0)}},
   ...(C.isWeb?{}:{http,zdApp:true}),
   openProjekt:P=>openProjekt(P instanceof URLSearchParams?P:linkParams(P)),
