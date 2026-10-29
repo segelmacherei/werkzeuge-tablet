@@ -243,8 +243,13 @@ async function syncTools(){
   const want=[];a.items.filter(e=>!e.dir&&e.name===TOOL_HOST).forEach(e=>want.push({e,rel:e.name}));
   if(b)b.items.filter(e=>!e.dir&&/\.html?$/i.test(e.name)).forEach(e=>want.push({e,rel:'Offerte und Montage/'+e.name}));
   if(!want.some(w=>w.rel===TOOL_HOST))throw new Error(TOOL_HOST+' fehlt im Ordner 04 Werkzeuge.');
+  /* Offline-Paket: Bibliotheken in «Offerte und Montage/lib» (PDF-Leser/-Erzeuger, Karte, STEP-Leser) mit auf das Tablet nehmen */
+  if(!C.isWeb){const libs=async(d,rel,tiefe)=>{const L=await davList(d).catch(()=>null);if(!L)return;for(const e of L.items){if(e.dir){if(tiefe<3)await libs(e.path,rel+e.name+'/',tiefe+1)}else want.push({e,rel:rel+e.name,bin:true})}};
+    await libs(OM+'/lib','Offerte und Montage/lib/',0)}
   const todo=want.filter(w=>man[w.rel]!==w.e.etag);let i=0;
   for(const w of todo){msg('Lade '+w.rel.split('/').pop()+' …');bar(i/todo.length);
+    if(w.bin){const r=await davRaw('GET',w.e.path,{responseType:'base64'});if(r.status!==200){i++;continue} /* Bibliothek fehlt: Werkzeug lädt sie dann aus dem Internet */
+      await fsW('w/'+w.rel,r.data);man[w.rel]=w.e.etag;i++;continue}
     const r=await davRaw('GET',w.e.path,{responseType:'text'});if(r.status!==200)throw new Error(w.rel+': Fehler '+r.status);
     await fsW('w/'+w.rel,inject(r.data),'utf8');man[w.rel]=w.e.etag;i++}
   bar(null);await prefSet('toolsManifest',man);await prefSet('toolsTime',Date.now());return todo.length}
