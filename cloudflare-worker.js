@@ -10,7 +10,7 @@ const REDIRECT = 'https://segelmacherei.github.io/werkzeuge-tablet/zendesk.html'
 const ORIGINS = ['https://app.segelmacherei.ch', 'https://segelmacherei.github.io', 'null', 'file://']; // file:// = Windows-Programm
 // Windows-Programm (Electron, file://) schickt gar keinen Origin mit → leer auch zulassen (der Worker kennt keine Geheimnisse)
 const OK = o => o === '' || ORIGINS.includes(o) || /^file:/.test(o);
-const API_OK = [/^\/api\/v2\/users\/search\.json$/, /^\/api\/v2\/users\/\d+\/tickets\/requested\.json$/, /^\/api\/v2\/users\/me\.json$/, /^\/api\/v2\/organizations\/\d+\/tickets\.json$/, /^\/api\/v2\/search\.json$/, /^\/api\/v2\/tickets\.json$/, /^\/api\/v2\/users\/show_many\.json$/];
+const API_OK = [/^\/api\/v2\/users\/search\.json$/, /^\/api\/v2\/users\/\d+\/tickets\/requested\.json$/, /^\/api\/v2\/users\/me\.json$/, /^\/api\/v2\/organizations\/\d+\/tickets\.json$/, /^\/api\/v2\/search\.json$/, /^\/api\/v2\/tickets\.json$/, /^\/api\/v2\/users\/show_many\.json$/, /^\/api\/v2\/tickets\/\d+\/comments\.json$/];
 
 function cors(origin) {
   const h = { 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '86400', 'Vary': 'Origin' };
