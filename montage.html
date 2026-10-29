@@ -50,7 +50,7 @@ try{const h=location.hash.replace(/^#/,'');let m=h.match(/(?:^|&)m=([^&]+)/);
     const SL=(K[7]||'').split('|').map(dec).filter(Boolean);
     D={p:dec(K[1]),f:dec(K[2]),t:dec(K[3]),m:dec(K[4]),d:K[5]||'',a:+K[6]||0,s:[],h:[]};
     T.slice(1).forEach(x=>{if(x[0]==='H'){D.h=x.slice(1).split('_').map(o=>{const n=o.split('.').map(Number);const p=[];for(let i=1;i+1<n.length;i+=2)p.push([n[i],n[i+1]]);return {z:n[0],p}});return}
-      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],w:+f[9]>0?+f[9]/1000:1.42,e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'']})})})}
+      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],w:+f[9]>0?+f[9]/1000:1.42,e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'',n[6]||0]})})})}
   else{m=h.match(/(?:^|&)d=([^&]+)/);if(!m)throw 0;
   let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
   D=JSON.parse(new TextDecoder().decode(u))}}catch(e){D=null}
@@ -58,7 +58,7 @@ if(!D||!Array.isArray(D.s)||!D.s.length){$('#main').innerHTML='<div class="err">
 $('#firm').textContent=D.f||'Montage Sonnensegel';$('#titel').textContent=D.p||'Montage';document.title='Montage – '+(D.p||'Sonnensegel');
 let cur=Math.min(Math.max(0,+D.a||0),D.s.length-1);
 /* Daten: Punkte [x,y,h,gz,typ(0 Stütze / 1 Wand),Spanner] in cm */
-const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,gz:(q[3]||0)/100,w:q[4]===1,sp:q[5]||''}))}));
+const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,gz:(q[3]||0)/100,w:q[4]===1,sp:q[5]||'',gap:+q[6]||0}))}));
 const H=(D.h||[]).map(o=>({pts:o.p.map(q=>({x:q[0]/100,y:q[1]/100})),h:o.z/100}));
 $('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`<button type="button" data-i="${i}"><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||('Segel '+(i+1)))}</button>`).join('')}</div>`:''}
  <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button><button type="button" id="bN" aria-pressed="true">Nähte ✓</button></div>
@@ -104,15 +104,15 @@ const cv=$('#cv'),ctx=cv.getContext('2d');
 let yaw=-0.6,pitch=0.75,zoom=1,panX=0,panY=0;
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y,a.h-b.h)}
 function info(){const s=S[cur],n=s.P.length,vr=s.vr>=0?s.vr:-1,kg=s.kg>=0?s.kg:-1;
-  const rows=s.P.map((p,i)=>`<tr><td class="${i===0?'ea':''}">${i===0?'<span class="dot"></span>':''}${LET[i]}</td><td>${p.w?'Wand':'Stütze'}</td><td class="n">${mm(p.h-p.gz)}</td><td class="sp">${esc(p.sp||'–')}</td><td>${i===vr?'<b>Vorroller</b>':i===kg?'Kugellager':''}${i===0?(i===vr||i===kg?' · ':'')+'<span class="ea">rot markiert</span>':''}</td></tr>`).join('');
+  const rows=s.P.map((p,i)=>`<tr><td class="${i===0?'ea':''}">${i===0?'<span class="dot"></span>':''}${LET[i]}</td><td>${p.w?'Wand':'Stütze'}</td><td class="n">${mm(p.h-p.gz)}</td><td class="sp">${esc(p.sp||'–')}${p.gap?'<br>Abstand <b style="font-size:15px">'+p.gap.toLocaleString('de-CH')+' mm</b>':''}</td><td>${i===vr?'<b>Vorroller</b>':i===kg?'Kugellager':''}${i===0?(i===vr||i===kg?' · ':'')+'<span class="ea">rot markiert</span>':''}</td></tr>`).join('');
   const kan=s.P.map((p,i)=>`${LET[i]}–${LET[(i+1)%n]} <b>${mm(dist(p,s.P[(i+1)%n]))}</b>`).join(' · ');
   $('#info').innerHTML=`<h2><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||'Segel')}</h2>
    <div class="hint" style="margin:-4px 0 8px">${esc([s.tu,s.tf,s.ty==='r'?'Rollsegel':'Saisonsegel'].filter(Boolean).join(' · '))}</div>
-   <table><tr><th>Ecke</th><th>Befestigung</th><th style="text-align:right">Höhe [mm]</th><th>Spanner</th><th></th></tr>${rows}</table>
+   <table><tr><th>Ecke</th><th>Befestigung</th><th style="text-align:right">Höhe [mm]</th><th>Spanner / Abstand Segel–Befestigung</th><th></th></tr>${rows}</table>
    <div class="hint" style="margin-top:8px">Abstand der Befestigungspunkte [mm]: ${kan}</div>`;
   const st=[`Befestigungspunkte prüfen: Höhen und Abstände wie oben (± 2 cm). Weicht etwas mehr ab, bitte zuerst anrufen.`,
     `Segel auslegen: die <span class="ea">rot markierte Ecke</span> ist <b>Ecke A</b> und gehört an Punkt A. Danach der Reihe nach ${s.P.map((_,i)=>LET[i]).join(' → ')}.`,
-    `Spanner ganz öffnen und alle Ecken einhängen, noch nicht spannen.`,
+    `Spanner ganz öffnen und alle Ecken einhängen, noch nicht spannen.${s.P.some(p=>p.gap)?' Fertig gespannt ist der <b>Abstand Segelecke bis Befestigung</b> je Ecke wie in der Tabelle'+(()=>{const g=[...new Set(s.P.map(p=>p.gap).filter(Boolean))];return g.length===1?' (<b>'+g[0].toLocaleString("de-CH")+' mm</b>)':''})()+'.':''}`,
     `Gleichmässig über Kreuz spannen, bis das Segel straff und <b>faltenfrei</b> ist. Der Zug läuft über das <b>schwarze Randseil</b>, das weisse Gurtband ist nur leicht gespannt (siehe unten).`,
     `Falten ab einer Ecke oder hängendes Gurtband: entspannen, schwarzes Randseil trimmen (siehe unten), nochmals aufspannen. Danach Spanner sichern (Kontermutter / Sicherung).`];
   if(s.ty==='r'&&vr>=0)st.splice(2,0,`Rollsegel: Vorroller an Ecke <b>${LET[vr]}</b>${kg>=0?', Kugellager an Ecke <b>'+LET[kg]+'</b>':''}. Die Mittelkante ${LET[vr]}–${kg>=0?LET[kg]:'…'} braucht am meisten Zug; die beiden anderen Ecken werden zum Aufrollen gelöst.`);
