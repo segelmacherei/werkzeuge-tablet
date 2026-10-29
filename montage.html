@@ -79,23 +79,23 @@ $('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`
    <text x="8" y="116" font-size="12" fill="#111" font-family="system-ui">(Dyneema) trägt den Zug</text>
    <path d="M112 122 L140 144" stroke="#111" stroke-width="1"/>
    <text x="204" y="74" font-size="13" font-weight="700" fill="#374151" font-family="system-ui">Weisses Gurtband</text>
-   <text x="204" y="90" font-size="12" fill="#374151" font-family="system-ui">nur führen, wenig Zug</text>
+   <text x="204" y="90" font-size="12" fill="#374151" font-family="system-ui">nur leicht gespannt</text>
    <path d="M202 84 L184 96" stroke="#374151" stroke-width="1"/>
   </svg>
   <ul style="margin:0;padding-left:20px">
    <li>Das <b>schwarze Randseil (Dyneema)</b> spannt das Segel – der ganze Zug läuft über das Seil zum Spanner.</li>
-   <li>Das <b>weisse Gurtband</b> hält das Segel nur an seinem Platz, damit es nicht wandert. Es darf <b>nicht stark gespannt</b> sein.</li>
+   <li>Das <b>weisse Gurtband</b> hält das Segel nur an seinem Platz, damit es nicht wandert. Es soll nur <b>leicht gespannt</b> sein – nicht stramm, aber auch nicht schlaff.</li>
   </ul>
-  <div style="display:flex;gap:10px;margin:12px 0 6px">
-   <svg viewBox="0 0 150 100" role="img" aria-label="Richtig: Segel glatt" style="flex:1;max-width:220px"><path d="M10 90 Q75 55 75 10 Q75 55 140 90 Q75 70 10 90Z" fill="#cfe3c4" stroke="#111" stroke-width="3"/><text x="75" y="99" text-anchor="middle" font-size="12" font-weight="700" fill="#0b6b4b" font-family="system-ui">✓ faltenfrei</text></svg>
-   <svg viewBox="0 0 150 100" role="img" aria-label="Falsch: Falten von der Ecke her, weil das Gurtband zu viel Zug hat" style="flex:1;max-width:220px"><path d="M10 90 Q75 55 75 10 Q75 55 140 90 Q75 70 10 90Z" fill="#cfe3c4" stroke="#111" stroke-width="3"/><path d="M75 22 L52 70 M75 22 L65 74 M75 22 L86 74 M75 22 L98 70" stroke="#7a8a70" stroke-width="1.6"/><text x="75" y="99" text-anchor="middle" font-size="12" font-weight="700" fill="#d0281e" font-family="system-ui">✗ Falten ab der Ecke</text></svg>
+  <div style="display:flex;gap:8px;margin:12px 0 6px">
+   <svg viewBox="0 0 150 106" role="img" aria-label="Richtig: Segel glatt" style="flex:1;max-width:220px"><path d="M10 90 Q75 55 75 10 Q75 55 140 90 Q75 70 10 90Z" fill="#cfe3c4" stroke="#111" stroke-width="3"/><text x="75" y="99" text-anchor="middle" font-size="12" font-weight="700" fill="#0b6b4b" font-family="system-ui">✓ faltenfrei</text></svg>
+   <svg viewBox="0 0 150 106" role="img" aria-label="Falsch: Falten von der Ecke her, weil das Gurtband zu viel Zug hat" style="flex:1;max-width:220px"><path d="M10 90 Q75 55 75 10 Q75 55 140 90 Q75 70 10 90Z" fill="#cfe3c4" stroke="#111" stroke-width="3"/><path d="M75 22 L52 70 M75 22 L65 74 M75 22 L86 74 M75 22 L98 70" stroke="#7a8a70" stroke-width="1.6"/><text x="75" y="99" text-anchor="middle" font-size="12" font-weight="700" fill="#d0281e" font-family="system-ui">✗ Falten ab der Ecke</text></svg>
+   <svg viewBox="0 0 150 106" role="img" aria-label="Falsch: Gurtband hängt durch, zu viel Zug auf dem Randseil" style="flex:1;max-width:220px"><path d="M10 90 Q70 66 72 34 L78 34 Q80 66 140 90 Q75 72 10 90Z" fill="#cfe3c4"/><path d="M75 34 Q56 24 75 12" fill="none" stroke="#6b7280" stroke-width="6"/><path d="M75 34 Q56 24 75 12" fill="none" stroke="#fff" stroke-width="4"/><path d="M10 90 Q70 66 72 34 L74 12 M140 90 Q80 66 78 34 L76 12" fill="none" stroke="#111" stroke-width="3.5"/><circle cx="75" cy="9" r="4" fill="none" stroke="#555" stroke-width="2"/><text x="75" y="99" text-anchor="middle" font-size="12" font-weight="700" fill="#d0281e" font-family="system-ui">✗ Gurtband hängt</text></svg>
   </div>
-  <p style="margin:6px 0 4px"><b>Falten ab der Ecke?</b> Dann zieht das Gurtband zu stark:</p>
-  <ol style="margin:0">
-   <li>Segel <b>entspannen</b> (Spanner lösen).</li>
-   <li>Das <b>schwarze Randseil trimmen</b> (nachziehen), bis es den Zug übernimmt und das Gurtband locker ist.</li>
-   <li>Segel <b>nochmals aufspannen</b>.</li>
-  </ol>
+  <p style="margin:6px 0 4px">Richtig ist: <b>Randseil trägt den Zug, Gurtband nur leicht gespannt.</b> Stimmt das nicht:</p>
+  <p style="margin:8px 0 2px"><b>Falten ab der Ecke?</b> Das Gurtband zieht zu stark, das Randseil ist zu lang.</p>
+  <ol style="margin:0"><li>Segel <b>entspannen</b> (Spanner lösen).</li><li><b>Schwarzes Randseil kürzer trimmen</b> (nachziehen).</li><li>Segel <b>nochmals aufspannen</b> und prüfen.</li></ol>
+  <p style="margin:10px 0 2px"><b>Gurtband hängt locker durch?</b> Dann ist zu viel Zug auf dem Randseil, es ist zu kurz.</p>
+  <ol style="margin:0"><li>Segel <b>entspannen</b>.</li><li><b>Schwarzes Randseil etwas nachlassen</b> (länger trimmen).</li><li>Segel <b>nochmals aufspannen</b> und prüfen.</li></ol>
   <p style="margin:10px 0 0;padding:8px 10px;background:#fff4e5;border-radius:8px;font-size:15px">Das Segel muss <b>faltenfrei</b> sein. Nur dann hält es auch bei Sturm. Wir stellen die Segel in der Werkstatt ein – den letzten Trimm sieht man aber erst beim Spannen vor Ort.</p>
  </div>
  <footer id="ft"></footer>`;
@@ -112,8 +112,8 @@ function info(){const s=S[cur],n=s.P.length,vr=s.vr>=0?s.vr:-1,kg=s.kg>=0?s.kg:-
   const st=[`Befestigungspunkte prüfen: Höhen und Abstände wie oben (± 2 cm). Weicht etwas mehr ab, bitte zuerst anrufen.`,
     `Segel auslegen: die <span class="ea">rot markierte Ecke</span> ist <b>Ecke A</b> und gehört an Punkt A. Danach der Reihe nach ${s.P.map((_,i)=>LET[i]).join(' → ')}.`,
     `Spanner ganz öffnen und alle Ecken einhängen, noch nicht spannen.`,
-    `Gleichmässig über Kreuz spannen, bis das Segel straff und <b>faltenfrei</b> ist. Der Zug muss über das <b>schwarze Randseil</b> laufen, nicht über das weisse Gurtband (siehe unten).`,
-    `Gibt es Falten ab einer Ecke: entspannen, schwarzes Randseil trimmen, nochmals aufspannen. Danach Spanner sichern (Kontermutter / Sicherung).`];
+    `Gleichmässig über Kreuz spannen, bis das Segel straff und <b>faltenfrei</b> ist. Der Zug läuft über das <b>schwarze Randseil</b>, das weisse Gurtband ist nur leicht gespannt (siehe unten).`,
+    `Falten ab einer Ecke oder hängendes Gurtband: entspannen, schwarzes Randseil trimmen (siehe unten), nochmals aufspannen. Danach Spanner sichern (Kontermutter / Sicherung).`];
   if(s.ty==='r'&&vr>=0)st.splice(2,0,`Rollsegel: Vorroller an Ecke <b>${LET[vr]}</b>${kg>=0?', Kugellager an Ecke <b>'+LET[kg]+'</b>':''}. Die Mittelkante ${LET[vr]}–${kg>=0?LET[kg]:'…'} braucht am meisten Zug; die beiden anderen Ecken werden zum Aufrollen gelöst.`);
   $('#steps').innerHTML=st.map(t=>`<li>${t}</li>`).join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',+b.dataset.i===cur))}
