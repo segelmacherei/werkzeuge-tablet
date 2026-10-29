@@ -62,7 +62,7 @@ const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,
 const H=(D.h||[]).map(o=>({pts:o.p.map(q=>({x:q[0]/100,y:q[1]/100})),h:o.z/100}));
 $('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`<button type="button" data-i="${i}"><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||('Segel '+(i+1)))}</button>`).join('')}</div>`:''}
  <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button><button type="button" id="bN" aria-pressed="true">Nähte ✓</button></div>
- <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
+ <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen${S.length>1?', Segel antippen zum Wechseln':''}. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
  <div class="card" id="info"></div>
  <div class="card"><h2>So montieren</h2><ol id="steps"></ol></div>
  <div class="card" id="spannen"><h2>Wichtig beim Spannen</h2>
@@ -160,12 +160,16 @@ function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect(
       ctx.beginPath();ctx.arc(q.x,q.y,5,0,7);ctx.fillStyle=p.w?'#555':col;ctx.fill();ctx.strokeStyle='#111';ctx.lineWidth=1.2;ctx.stroke();
       const t=LET[k]+'  '+mm(p.h-p.gz)+(k===s.vr?'  Vorroller':'');ctx.font='bold 14px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(t,q.x+12,q.y-10);ctx.fillStyle=k===0?'#d0281e':'#111';ctx.fillText(t,q.x+12,q.y-10)})})}
 let ptr={},last=null,pinch=0;
-cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.pointerId]={x:e.clientX,y:e.clientY};last={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2)pinch=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y)});
+let tap=null;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.pointerId]={x:e.clientX,y:e.clientY};tap=Object.keys(ptr).length===1?{x:e.clientX,y:e.clientY,t:Date.now()}:null;last={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2)pinch=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y)});
 cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);
   if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;draw();return}
   if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};
   if(e.shiftKey||e.button===2){panX+=dx;panY+=dy}else{yaw+=dx*0.01;pitch=Math.max(0,Math.min(1.5,pitch+dy*0.008))}draw()});
-const up=e=>{delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+/* Antippen eines Segels wählt es aus (bei mehreren Segeln) */
+function segelAn(cx,cy){const r=cv.getBoundingClientRect(),x=cx-r.left,y=cy-r.top;const inP=(P)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){if(((P[i].y>y)!==(P[j].y>y))&&(x<(P[j].x-P[i].x)*(y-P[i].y)/(P[j].y-P[i].y)+P[i].x))c=!c}return c};
+  const T=S.map((s,i)=>({i,P:curve(s).map(p=>scr(p.x,p.y,p.z))})).filter(o=>inP(o.P));if(!T.length)return -1;const nicht=T.filter(o=>o.i!==cur);return (nicht.length?nicht:T)[0].i}
+const up=e=>{if(tap&&e.type==='pointerup'&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<8&&Date.now()-tap.t<500&&S.length>1){const i=segelAn(e.clientX,e.clientY);if(i>=0&&i!==cur){cur=i;info();draw()}}tap=null;delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));draw()},{passive:false});
 document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=0}else if(v==='iso'){yaw=-0.6;pitch=0.75}fit();draw()});
 $('#bN').onclick=()=>{zeigN=!zeigN;$('#bN').textContent=zeigN?'Nähte ✓':'Nähte';$('#bN').setAttribute('aria-pressed',zeigN);draw()};
