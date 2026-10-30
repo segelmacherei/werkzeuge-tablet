@@ -311,7 +311,7 @@ async function loginWeb(){let srv=$('srv').value.trim().replace(/\/+$/,'');if(!/
   catch(e){cfg=null;msg(e instanceof AuthErr?'Benutzername oder App-Passwort falsch.':e instanceof NetErr?'Keine Verbindung zu Nextcloud.\n\nWenn Internet da ist: In Nextcloud unter Verwaltung → WebAppPassword muss diese Adresse erlaubt sein: '+location.origin:(e.message||String(e)),true)}
   finally{$('bLogin').disabled=false}}
 /* ---------------- Kundenseite: QR-Code vom Etikett, gescannt von einem Kunden (nicht angemeldet) ---------------- */
-const FIRMA={name:'Schmidhauser Segelmacherei GmbH',strasse:'Langrütistrasse 10',ort:'9403 Goldach',tel:'+41 245 50 50',mail:'info@segelmacherei.ch',web:'https://www.segelmacherei.ch',
+const FIRMA={name:'Schmidhauser Segelmacherei GmbH',strasse:'Langrütistrasse 10',ort:'9403 Goldach',tel:'+41 71 245 50 50',mail:'info@segelmacherei.ch',web:'https://www.segelmacherei.ch',
   logo:'https://www.segelmacherei.ch/wp-content/uploads/2022/04/segelmacherei_schmidhauser_white.svg'};
 function showKunde(P){const nr0=P&&P.get('nr')||'',nr=/^20\d{6}$/.test(nr0)?'':nr0, /* Datum statt Auftragsnummer (Projekt noch ohne Exxas-Nr.) nicht anzeigen */e=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const betreff='Service Sonnensegel'+(nr?' – Auftrag '+nr:''),body='Guten Tag\n\nIch habe eine Frage / brauche Service zu meinem Sonnensegel'+(nr?' (Auftrag '+nr+')':'')+'.\n\nName:\nAdresse:\nTelefon:\nAnliegen:\n\nFreundliche Grüsse';
