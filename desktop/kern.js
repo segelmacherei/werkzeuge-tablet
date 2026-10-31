@@ -92,6 +92,10 @@ function erstelle(root, opt = {}) {
       catch (e) {
         try { await fsp.unlink(tmp); } catch (e2) {}
         if (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'EACCES') { await fsp.writeFile(real, data); return true; } // Datei gerade geöffnet (z.B. Nextcloud) → direkt schreiben
+        // UNKNOWN/EIO: Windows-Clouddateien (Nextcloud mit virtuellen Dateien) melden kurz nach dem Hochladen oft unbekannte Fehler → kurz warten, dann direkt schreiben
+        if (e.code === 'UNKNOWN' || e.code === 'EIO' || e.code === 'ECANCELED') {
+          for (const ms of [400, 1200]) { await new Promise(r => setTimeout(r, ms)); try { await fsp.writeFile(real, data); return true; } catch (e3) { e = e3; } }
+        }
         throw e;
       }
       return true;

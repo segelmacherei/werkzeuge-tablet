@@ -157,6 +157,20 @@ ipcMain.on('seg-prompt', (ev, msg, def) => {
   p.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 });
 
+/* ---------- App-Protokoll: Abstürze in «04 Werkzeuge\Protokoll\App_<PC>.txt» (Nextcloud), sonst im Benutzerordner ---------- */
+function appLog(text) {
+  try {
+    const z = new Date().toLocaleString('de-CH') + ' [App ' + app.getVersion() + '] ' + String(text).replace(/\s+/g, ' ').slice(0, 1500) + '\r\n';
+    const dir = FS ? path.join(FS.root, '04 Werkzeuge', 'Protokoll') : app.getPath('userData');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'App_' + require('os').hostname().replace(/[^\w-]/g, '_') + '.txt'), z);
+  } catch (e) {}
+}
+process.on('uncaughtException', e => appLog('Fehler im Programm: ' + (e && e.stack || e)));
+process.on('unhandledRejection', e => appLog('Promise im Programm: ' + (e && e.stack || e)));
+app.on('render-process-gone', (e, wc, d) => appLog('Seite abgestürzt: ' + (d && d.reason) + ' (Code ' + (d && d.exitCode) + ') ' + (wc && !wc.isDestroyed() ? wc.getURL().split('/').pop() : '')));
+app.on('child-process-gone', (e, d) => { if (d && d.reason !== 'clean-exit') appLog('Hilfsprozess beendet: ' + d.type + ' ' + d.reason); });
+
 /* ---------- Fenster ---------- */
 function startHash() { const h = startLink && hashAus(startLink); startLink = null; return h ? h.slice(1) : undefined; }
 function laden() {
@@ -178,7 +192,9 @@ function fenster() {
   win.on('closed', () => { win = null; });
   win.webContents.on('will-navigate', (e, url) => { if (!imRoot(url)) { e.preventDefault(); if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url); } });
   win.webContents.on('page-title-updated', (e) => { e.preventDefault(); });
+  win.webContents.on('unresponsive', () => appLog('Fenster reagiert nicht mehr'));
   win.webContents.on('did-fail-load', (e, code, desc, url, main) => {
+    appLog('Laden fehlgeschlagen: ' + desc + ' ' + String(url).split('/').pop());
     if (main) dialog.showMessageBox(win, { type: 'error', title: 'Werkzeuge nicht gefunden', message: 'Die Werkzeuge konnten nicht geöffnet werden.', detail: desc + '\n' + url + '\n\nIst Nextcloud fertig synchronisiert? Sonst im Menü (Alt) „Nextcloud-Ordner wählen…“.' });
   });
   laden();
