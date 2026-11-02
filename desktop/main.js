@@ -193,6 +193,8 @@ function fenster() {
   win.webContents.on('will-navigate', (e, url) => { if (!imRoot(url)) { e.preventDefault(); if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url); } });
   win.webContents.on('page-title-updated', (e) => { e.preventDefault(); });
   win.webContents.on('unresponsive', () => appLog('Fenster reagiert nicht mehr'));
+  // «Seite verlassen?» (beforeunload) blockiert im Programm still das Neuladen → «Aktualisieren» hängt. Die Werkzeuge speichern vorher selbst, darum zulassen.
+  win.webContents.on('will-prevent-unload', e => { appLog('Neuladen trotz «ungespeichert» zugelassen'); e.preventDefault(); });
   win.webContents.on('did-fail-load', (e, code, desc, url, main) => {
     appLog('Laden fehlgeschlagen: ' + desc + ' ' + String(url).split('/').pop());
     if (main) dialog.showMessageBox(win, { type: 'error', title: 'Werkzeuge nicht gefunden', message: 'Die Werkzeuge konnten nicht geöffnet werden.', detail: desc + '\n' + url + '\n\nIst Nextcloud fertig synchronisiert? Sonst im Menü (Alt) „Nextcloud-Ordner wählen…“.' });
