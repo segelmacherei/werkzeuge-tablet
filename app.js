@@ -369,6 +369,8 @@ try{const A=C.Plugins&&C.Plugins.App;if(A&&A.addListener){A.addListener('backBut
 
 /* Schnittstelle für die Werkzeuge (shim.js) */
 window.__seg={root:'/04-Vertrieb',list,stat,read,write,mkdir,remove,picker,share,openUrl,nav,showNet,flush:flushOutbox,scan,
+  /* 📂 Projektordner in Nextcloud öffnen (Kundenkarte): Link auf die Nextcloud-Dateiansicht – Android bietet die Nextcloud-App an, sonst Browser */
+  ordnerOeffnen:async p=>{const u=cfg.server.replace(/\/+$/,'')+'/index.php/apps/files/?dir='+encodeURIComponent(norm(p));try{await plug('Update','oeffnen',{url:u})}catch(e){await openUrl(u)}return true},
   /* Für die Werkzeuge: z.B. Exxas-Anmeldung des API-Benutzers, damit sie sich nach 24 h selbst erneuert (nur in der App gespeichert, wie das Nextcloud-App-Passwort) */
   secret:{get:async k=>{const v=await sGet('geheim:'+k);return v==null?null:String(v)},set:async(k,v)=>{await sSet('geheim:'+k,String(v));return true},del:async k=>{await sSet('geheim:'+k,null);try{await plug('Preferences','remove',{key:'geheim:'+k})}catch(e){}return true}},
   onZendesk:f=>{zdHoerer=f;if(zdWartend){const d=zdWartend;zdWartend=null;setTimeout(()=>f(d),0)}},
