@@ -51,7 +51,7 @@ try{const h=location.hash.replace(/^#/,'');let m=h.match(/(?:^|&)m=([^&]+)/);
     const SL=(K[7]||'').split('|').map(dec).filter(Boolean);
     D={p:dec(K[1]),f:dec(K[2]),t:dec(K[3]),m:dec(K[4]),d:K[5]||'',a:+K[6]||0,s:[],h:[]};
     T.slice(1).forEach(x=>{if(x[0]==='H'){D.h=x.slice(1).split('_').map(o=>{const n=o.split('.').map(Number);const p=[];for(let i=1;i+1<n.length;i+=2)p.push([n[i],n[i+1]]);return {z:n[0],p}});return}
-      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],w:+f[9]>0?+f[9]/1000:1.42,e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'',n[6]||0]})})})}
+      const f=x.split('~');D.s.push({n:dec(f[0]),c:f[1]?'#'+f[1]:'',tu:dec(f[2]),tf:dec(f[3]),ty:f[4],vr:+f[5],kg:+f[6],b:+f[7],w:+f[9]>0?+f[9]/1000:1.42,kb:(f[10]||'').split('_').map(v=>v===''?NaN:+v),e:(f[8]||'').split('_').filter(Boolean).map(q=>{const n=q.split('.').map(Number);return [n[0],n[1],n[2],n[3]||0,n[4]||0,n[5]>0?SL[n[5]-1]||'':'',n[6]||0]})})})}
   else{m=h.match(/(?:^|&)d=([^&]+)/);if(!m)throw 0;
   let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
   D=JSON.parse(new TextDecoder().decode(u))}}catch(e){D=null}
@@ -127,8 +127,8 @@ function fit(){const r=cv.getBoundingClientRect(),W=r.width,Hh=r.height;const Q=
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
   fitS=Math.min((W-150)/Math.max(.5,x1-x0),(Hh-70)/Math.max(.5,y1-y0));fitX=W/2-(x0+x1)/2*fitS-30;fitY=Hh/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
 function scr(x,y,z){const q=P3(x,y,z),s=fitS*zoom,r=cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY,d:q.depth}}
-function curve(s){/* Segelrand mit Bogen nach innen (Dip %) */const n=s.P.length,c={x:0,y:0,z:0};s.P.forEach(p=>{c.x+=p.x/n;c.y+=p.y/n;c.z+=p.h/n});const bow=(+s.b||8)/100,out=[];
-  for(let i=0;i<n;i++){const a=s.P[i],b=s.P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y,b.h-a.h),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.h+b.h)/2};
+function curve(s){/* Segelrand mit Bogen nach innen (Dip %) */const n=s.P.length,c={x:0,y:0,z:0};s.P.forEach(p=>{c.x+=p.x/n;c.y+=p.y/n;c.z+=p.h/n});const out=[];
+  for(let i=0;i<n;i++){const bow=((s.kb&&isFinite(s.kb[i]))?s.kb[i]:(+s.b||8))/100;/* Durchhang pro Kante (Planer: Kante i → i+1) */const a=s.P[i],b=s.P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y,b.h-a.h),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.h+b.h)/2};
     const dx=c.x-m.x,dy=c.y-m.y,dz=c.z-m.z,dl=Math.hypot(dx,dy,dz)||1,k=L*bow*2;const ctl={x:m.x+dx/dl*k,y:m.y+dy/dl*k,z:m.z+dz/dl*k};
     for(let t=0;t<16;t++){const u=t/16,a1=(1-u)*(1-u),b1=2*u*(1-u),c1=u*u;out.push({x:a1*a.x+b1*ctl.x+c1*b.x,y:a1*a.y+b1*ctl.y+c1*b.y,z:a1*a.h+b1*ctl.z+c1*b.h})}}return out}
 /* Nähte wie im Planer: von der Mittelachse aus alle Bahnbreiten (Standard 1420 mm) – Achse: Rollsegel Mittelkante, sonst längste Diagonale, Dreieck Ecke → Mitte längste Kante */
