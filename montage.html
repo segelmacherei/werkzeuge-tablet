@@ -63,7 +63,7 @@ const S=D.s.map(s=>({...s,P:(s.e||[]).map(q=>({x:q[0]/100,y:q[1]/100,h:q[2]/100,
 const H=(D.h||[]).map(o=>({pts:o.p.map(q=>({x:q[0]/100,y:q[1]/100})),h:o.z/100}));
 $('#main').innerHTML=`${S.length>1?`<div class="tabs" id="tabs">${S.map((s,i)=>`<button type="button" data-i="${i}"><span class="sw" style="background:${esc(s.c||'#e8913a')}"></span>${esc(s.n||('Segel '+(i+1)))}</button>`).join('')}</div>`:''}
  <div class="card"><canvas id="cv"></canvas><div class="vb"><button type="button" data-v="iso">Schräg</button><button type="button" data-v="top">Von oben</button><button type="button" data-v="fit">Einpassen</button><button type="button" id="bN" aria-pressed="true">Nähte ✓</button></div>
- <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen${S.length>1?', Segel antippen zum Wechseln':''}. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
+ <div class="hint" style="margin-top:6px">Mit einem Finger drehen, mit zwei Fingern zoomen und verschieben, doppelt tippen = Einpassen${S.length>1?', Segel antippen zum Wechseln':''}. <span class="dot"></span><b class="ea">Ecke A</b> ist am Segel rot markiert.</div></div>
  <div class="card" id="info"></div>
  <div class="card"><h2>So montieren</h2><ol id="steps"></ol></div>
  <div class="card" id="spannen"><h2>Wichtig beim Spannen</h2>
@@ -120,13 +120,17 @@ function info(){const s=S[cur],n=s.P.length,vr=s.vr>=0?s.vr:-1,kg=s.kg>=0?s.kg:-
   $('#steps').innerHTML=st.map(t=>`<li>${t}</li>`).join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',+b.dataset.i===cur))}
 /* einfache Orthogonal-Projektion: Drehung um z (yaw), Neigung (pitch) */
-function P3(x,y,z){const cy=Math.cos(yaw),sy=Math.sin(yaw);const u=x*cy-y*sy,v=x*sy+y*cy;const cp=Math.cos(pitch),sp=Math.sin(pitch);return {u,w:-(v*cp)-z*sp+0,depth:v*sp-z*cp}}
+/* 23.11.2026: Drehpunkt = Mitte des Modells (vorher Weltursprung – das Segel drehte sich aus dem Bild) */
+let MX=0,MY=0,MZ=0,RC=null;
+function P3(x,y,z){x-=MX;y-=MY;z-=MZ;const cy=Math.cos(yaw),sy=Math.sin(yaw);const u=x*cy-y*sy,v=x*sy+y*cy;const cp=Math.cos(pitch),sp=Math.sin(pitch);return {u,w:-(v*cp)-z*sp+0,depth:v*sp-z*cp}}
+function mitte(){const A=allPts();if(!A.length)return;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,z0=1e9,z1=-1e9;A.forEach(a=>{x0=Math.min(x0,a[0]);x1=Math.max(x1,a[0]);y0=Math.min(y0,a[1]);y1=Math.max(y1,a[1]);z0=Math.min(z0,a[2]);z1=Math.max(z1,a[2])});MX=(x0+x1)/2;MY=(y0+y1)/2;MZ=(z0+z1)/2}
+const rect=()=>RC||cv.getBoundingClientRect();
 let fitS=1,fitX=0,fitY=0;
 function allPts(){const A=[];S.forEach(s=>s.P.forEach(p=>{A.push([p.x,p.y,p.h],[p.x,p.y,p.gz])}));H.forEach(o=>o.pts.forEach(q=>{A.push([q.x,q.y,0],[q.x,q.y,o.h])}));return A}
-function fit(){const r=cv.getBoundingClientRect(),W=r.width,Hh=r.height;const Q=allPts().map(a=>P3(a[0],a[1],a[2]));if(!Q.length)return;
+function fit(){mitte();RC=null;const r=cv.getBoundingClientRect(),W=r.width,Hh=r.height;const Q=allPts().map(a=>P3(a[0],a[1],a[2]));if(!Q.length)return;
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
   fitS=Math.min((W-150)/Math.max(.5,x1-x0),(Hh-70)/Math.max(.5,y1-y0));fitX=W/2-(x0+x1)/2*fitS-30;fitY=Hh/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
-function scr(x,y,z){const q=P3(x,y,z),s=fitS*zoom,r=cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY,d:q.depth}}
+function scr(x,y,z){const q=P3(x,y,z),s=fitS*zoom,r=rect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY,d:q.depth}}
 function curve(s){/* Segelrand mit Bogen nach innen (Dip %) */const n=s.P.length,c={x:0,y:0,z:0};s.P.forEach(p=>{c.x+=p.x/n;c.y+=p.y/n;c.z+=p.h/n});const out=[];
   for(let i=0;i<n;i++){const bow=((s.kb&&isFinite(s.kb[i]))?s.kb[i]:(+s.b||8))/100;/* Durchhang pro Kante (Planer: Kante i → i+1) */const a=s.P[i],b=s.P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y,b.h-a.h),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.h+b.h)/2};
     const dx=c.x-m.x,dy=c.y-m.y,dz=c.z-m.z,dl=Math.hypot(dx,dy,dz)||1,k=L*bow*2;const ctl={x:m.x+dx/dl*k,y:m.y+dy/dl*k,z:m.z+dz/dl*k};
@@ -143,7 +147,8 @@ function naehte(s,C){const P=s.P.map(p=>({x:p.x,y:p.y,z:p.h})),n=P.length;if(n<3
   for(let k=Math.ceil(mn/W);k<=Math.floor(mx/W);k++){const lv=k*W,X=[];for(let i=0;i<C.length;i++){const j=(i+1)%C.length,va=v[i],vb=v[j];if((va<lv&&vb>=lv)||(va>=lv&&vb<lv)){const t=(lv-va)/(vb-va);X.push({x:C[i].x+(C[j].x-C[i].x)*t,y:C[i].y+(C[j].y-C[i].y)*t,z:C[i].z+(C[j].z-C[i].z)*t})}}
     X.sort((a,b)=>dot(sub(a,A),d)-dot(sub(b,A),d));for(let i=0;i+1<X.length;i+=2)out.push({k,a:X[i],b:X[i+1]})}
   return out}
-function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);
+let rafD=0;function drawSoon(){if(!rafD)rafD=requestAnimationFrame(()=>{rafD=0;draw()})}
+function draw(){const dpr=window.devicePixelRatio||1;RC=null;const r=cv.getBoundingClientRect();RC=r;const cw=Math.round(r.width*dpr),ch=Math.round(r.height*dpr);if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);
   /* Boden-Raster 1 m */const A=allPts();let gx0=1e9,gx1=-1e9,gy0=1e9,gy1=-1e9;A.forEach(a=>{gx0=Math.min(gx0,a[0]);gx1=Math.max(gx1,a[0]);gy0=Math.min(gy0,a[1]);gy1=Math.max(gy1,a[1])});
   gx0=Math.floor(gx0)-2;gx1=Math.ceil(gx1)+2;gy0=Math.floor(gy0)-2;gy1=Math.ceil(gy1)+2;ctx.strokeStyle='rgba(20,30,50,.08)';ctx.lineWidth=1;ctx.beginPath();
   for(let x=gx0;x<=gx1;x++){const a=scr(x,gy0,0),b=scr(x,gy1,0);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}for(let y=gy0;y<=gy1;y++){const a=scr(gx0,y,0),b=scr(gx1,y,0);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}ctx.stroke();
@@ -160,18 +165,21 @@ function draw(){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect(
     s.P.forEach((p,k)=>{const q=scr(p.x,p.y,p.h);if(k===0){ctx.beginPath();ctx.arc(q.x,q.y,11,0,7);ctx.strokeStyle='#d0281e';ctx.lineWidth=3;ctx.stroke()}
       ctx.beginPath();ctx.arc(q.x,q.y,5,0,7);ctx.fillStyle=p.w?'#555':col;ctx.fill();ctx.strokeStyle='#111';ctx.lineWidth=1.2;ctx.stroke();
       const t=LET[k]+'  '+mm(p.h-p.gz)+(k===s.vr?'  Vorroller':'');ctx.font='bold 14px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(t,q.x+12,q.y-10);ctx.fillStyle=k===0?'#d0281e':'#111';ctx.fillText(t,q.x+12,q.y-10)})})}
-let ptr={},last=null,pinch=0;
+let ptr={},last=null,pinch=0,mid=null,lastTap=0;
 let tap=null;
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.pointerId]={x:e.clientX,y:e.clientY};tap=Object.keys(ptr).length===1?{x:e.clientX,y:e.clientY,t:Date.now()}:null;last={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2)pinch=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y)});
 cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);
-  if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;draw();return}
+  if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y),mx=(k[0].x+k[1].x)/2,my=(k[0].y+k[1].y)/2;if(pinch){zoom=Math.max(.3,Math.min(8,zoom*d/pinch));if(mid){panX+=mx-mid.x;panY+=my-mid.y}}pinch=d;mid={x:mx,y:my};last=null;tap=null;drawSoon();return}
   if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};
-  if(e.shiftKey||e.button===2){panX+=dx;panY+=dy}else{yaw+=dx*0.01;pitch=Math.max(0,Math.min(1.5,pitch+dy*0.008))}draw()});
+  if(e.shiftKey||(e.buttons&2)){panX+=dx;panY+=dy}else{yaw+=dx*0.012;pitch=Math.max(0,Math.min(1.55,pitch+dy*0.009))}drawSoon()});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
 /* Antippen eines Segels wählt es aus (bei mehreren Segeln) */
 function segelAn(cx,cy){const r=cv.getBoundingClientRect(),x=cx-r.left,y=cy-r.top;const inP=(P)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){if(((P[i].y>y)!==(P[j].y>y))&&(x<(P[j].x-P[i].x)*(y-P[i].y)/(P[j].y-P[i].y)+P[i].x))c=!c}return c};
   const T=S.map((s,i)=>({i,P:curve(s).map(p=>scr(p.x,p.y,p.z))})).filter(o=>inP(o.P));if(!T.length)return -1;const nicht=T.filter(o=>o.i!==cur);return (nicht.length?nicht:T)[0].i}
-const up=e=>{if(tap&&e.type==='pointerup'&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<8&&Date.now()-tap.t<500&&S.length>1){const i=segelAn(e.clientX,e.clientY);if(i>=0&&i!==cur){cur=i;info();draw()}}tap=null;delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));draw()},{passive:false});
+const up=e=>{if(tap&&e.type==='pointerup'&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<8&&Date.now()-tap.t<500){const jetzt=Date.now();
+    if(jetzt-lastTap<350){fit();draw();lastTap=0}else{lastTap=jetzt;if(S.length>1){const i=segelAn(e.clientX,e.clientY);if(i>=0&&i!==cur){cur=i;info();draw()}}}}
+  tap=null;delete ptr[e.pointerId];pinch=0;mid=null;const k=Object.values(ptr);last=k.length===1?{x:k[0].x,y:k[0].y}:null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));drawSoon()},{passive:false});
 document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=0}else if(v==='iso'){yaw=-0.6;pitch=0.75}fit();draw()});
 $('#bN').onclick=()=>{zeigN=!zeigN;$('#bN').textContent=zeigN?'Nähte ✓':'Nähte';$('#bN').setAttribute('aria-pressed',zeigN);draw()};
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;info();draw()});
@@ -197,15 +205,16 @@ $('#main').innerHTML=`${D.A.length>1?`<div class="tabs" id="tabs">${D.A.map((a,i
  <div class="hint" style="margin-top:6px">Mit dem Finger drehen, mit zwei Fingern zoomen. Die Seile laufen von <b>Seite A</b> nach <b>Seite B</b>.</div></div>
  <div class="card" id="info"></div><div class="card"><h2>So montieren</h2><ol id="steps"></ol></div><footer id="ft"></footer>`;
 const cv=$('#cv'),ctx=cv.getContext('2d');let yaw=-0.7,pitch=0.8,zoom=1,panX=0,panY=0,fitS=1,fitX=0,fitY=0;
-function P3(x,y,z){const cy=Math.cos(yaw),sy=Math.sin(yaw),u=x*cy-y*sy,v=x*sy+y*cy,cp=Math.cos(pitch),sp=Math.sin(pitch);return {u,w:-(v*cp)-z*sp,d:v*sp-z*cp}}
-function scr(x,y,z){const q=P3(x,y,z),r=cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY}}
+let RX=0,RY=0,RZ=0;function P3(x,y,z){x-=RX;y-=RY;z-=RZ;const cy=Math.cos(yaw),sy=Math.sin(yaw),u=x*cy-y*sy,v=x*sy+y*cy,cp=Math.cos(pitch),sp=Math.sin(pitch);return {u,w:-(v*cp)-z*sp,d:v*sp-z*cp}}
+let RC2=null;function scr(x,y,z){const q=P3(x,y,z),r=RC2||cv.getBoundingClientRect();return {x:(q.u*fitS+fitX-r.width/2)*zoom+r.width/2+panX,y:(q.w*fitS+fitY-r.height/2)*zoom+r.height/2+panY}}
 const pts=a=>[[0,0,0],[a.L,a.B,0],[0,0,a.hA+0.4],[a.L,a.B,a.hB+0.4],[0,a.B,0],[a.L,0,0]];
-function fit(){const a=D.A[cur],r=cv.getBoundingClientRect();const Q=pts(a).map(p=>P3(p[0],p[1],p[2]));let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
+function fit(){const a=D.A[cur],r=cv.getBoundingClientRect();RC2=null;RX=a.L/2;RY=a.B/2;RZ=(Math.max(a.hA,a.hB)+0.4)/2;const Q=pts(a).map(p=>P3(p[0],p[1],p[2]));let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;Q.forEach(q=>{x0=Math.min(x0,q.u);x1=Math.max(x1,q.u);y0=Math.min(y0,q.w);y1=Math.max(y1,q.w)});
   fitS=Math.min((r.width-100)/Math.max(.5,x1-x0),(r.height-70)/Math.max(.5,y1-y0));fitX=r.width/2-(x0+x1)/2*fitS;fitY=r.height/2-(y0+y1)/2*fitS;zoom=1;panX=0;panY=0}
 const line=(a,b,col,w,dash)=>{const p=scr(...a),q=scr(...b);ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([])};
 const poly=(P,fill,stroke)=>{ctx.beginPath();P.forEach((p,i)=>{const q=scr(...p);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}};
 const txt=(p,t,col,sz)=>{const q=scr(...p);ctx.font=`bold ${sz||14}px system-ui`;ctx.lineWidth=4;ctx.strokeStyle='#fff';ctx.strokeText(t,q.x,q.y);ctx.fillStyle=col||'#111';ctx.fillText(t,q.x,q.y)};
-function draw(){const dpr=devicePixelRatio||1,r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);const a=D.A[cur],L=a.L,B=a.B,z=u=>a.hA+(a.hB-a.hA)*u/L;
+let rafR=0;const drawSoon=()=>{if(!rafR)rafR=requestAnimationFrame(()=>{rafR=0;draw()})};
+function draw(){const dpr=devicePixelRatio||1,r=cv.getBoundingClientRect();RC2=r;const cw=Math.round(r.width*dpr),ch=Math.round(r.height*dpr);if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);const a=D.A[cur],L=a.L,B=a.B,z=u=>a.hA+(a.hB-a.hA)*u/L;
   for(let x=-1;x<=Math.ceil(L)+1;x++)line([x,-1,0],[x,B+1,0],'rgba(20,30,50,.08)',1);for(let y=-1;y<=Math.ceil(B)+1;y++)line([-1,y,0],[L+1,y,0],'rgba(20,30,50,.08)',1);
   [['A',0,a.eA,a.hA],['B',L,a.eB,a.hB]].forEach(([s,u,e,hz])=>{if(e==='w')poly([[u,-0.3,0],[u,B+0.3,0],[u,B+0.3,hz+0.4],[u,-0.3,hz+0.4]],'rgba(222,210,196,.8)','#8a7a6a');
     else{line([u,-0.15,hz],[u,B+0.15,hz],'#7a5a3a',7);line([u,-0.1,0],[u,-0.1,hz],'rgba(90,90,90,.45)',3);line([u,B+0.1,0],[u,B+0.1,hz],'rgba(90,90,90,.45)',3)}});
@@ -235,8 +244,8 @@ function info(){const a=D.A[cur],neig=Math.abs(a.hB-a.hA)/a.L*100,nW=a.W.length;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',+b.dataset.i===cur))}
 let ptr={},last=null,pinch=0;
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr[e.pointerId]={x:e.clientX,y:e.clientY};last={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2)pinch=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y)});
-cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;draw();return}
-  if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};yaw+=dx*0.01;pitch=Math.max(0,Math.min(1.5,pitch+dy*0.008));draw()});
+cv.addEventListener('pointermove',e=>{if(!ptr[e.pointerId])return;ptr[e.pointerId]={x:e.clientX,y:e.clientY};const k=Object.values(ptr);if(k.length===2){const d=Math.hypot(k[0].x-k[1].x,k[0].y-k[1].y);if(pinch)zoom=Math.max(.3,Math.min(8,zoom*d/pinch));pinch=d;drawSoon();return}
+  if(!last)return;const dx=e.clientX-last.x,dy=e.clientY-last.y;last={x:e.clientX,y:e.clientY};yaw+=dx*0.012;pitch=Math.max(0,Math.min(1.55,pitch+dy*0.009));drawSoon()});
 const up=e=>{delete ptr[e.pointerId];pinch=0;last=null};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.3,Math.min(8,zoom*(e.deltaY<0?1.12:1/1.12)));draw()},{passive:false});
 document.querySelectorAll('.vb button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v==='top'){yaw=0;pitch=0}else if(v==='iso'){yaw=-0.7;pitch=0.8}fit();draw()});
